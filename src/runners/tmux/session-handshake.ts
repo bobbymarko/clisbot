@@ -19,7 +19,12 @@ const SUBMIT_CONFIRM_POLL_INTERVAL_MS = 40;
 // well over a second. Anything shorter reports a delivered prompt as unconfirmed, and the
 // caller reacts to that by killing the session and re-running the prompt — so a stingy
 // budget here is what produces duplicate runs. The wait ends as soon as the pane moves,
-// so a generous ceiling costs nothing on the happy path.
+// so a generous ceiling costs nothing on the happy path. 3s rather than upstream's 600ms
+// because this host runs several agents and browsers, so redraws are slower here.
+//
+// INTERIM: upstream afbd173 (0.1.54-beta.3) fixes this properly — it also verifies the
+// prompt has drained from the composer, since Enter can land as a newline and change the
+// pane without submitting. Drop this in favour of upstream's on upgrade. See PATCHES.md.
 const SUBMIT_CONFIRM_MAX_WAIT_MS = 3_000;
 const SUBMIT_SNAPSHOT_CONFIRM_POLL_INTERVAL_MS = 40;
 const SUBMIT_SNAPSHOT_CONFIRM_MAX_WAIT_MS = 320;

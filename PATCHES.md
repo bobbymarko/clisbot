@@ -15,6 +15,42 @@ there is no copy step, and a crash-restart will pick up whatever was last built.
 
 ---
 
+## ⚠️ `fix/tmux-submit-false-negative` — INTERIM. Upstream already fixed this, better.
+
+**Upstream `afbd173` (in 0.1.54-beta.3) fixes the same bug, and its fix is
+strictly better than ours. Drop this patch on upgrade — do not port it forward.**
+
+Upstream reached the identical diagnosis, in almost the same words:
+
+> *"The previous 160ms/320ms windows produced false TmuxSubmitUnconfirmedError
+> under host load or slow CLI redraws even though Enter had truthfully submitted."*
+
+They widened the window to **600ms** — but they also fixed the half we did not.
+Our patch treats *any* pane change as proof of submission. Upstream points out
+that this is **not submission truth**: Enter can land as a *newline inside the
+composer*, which changes the pane while the prompt stays unsent. So they added
+`waitForSubmitSettled`, which reports `"submitted"` only when the pane changed
+**and** the prompt text is no longer sitting in the composer, and classifies the
+other outcomes as `"pending-input"` vs `"unchanged"` — retrying Enter up to 3
+times, the way a manual `/nudge` would heal it.
+
+That composer-drain check is the part our patch lacks. It is a heuristic tuned
+against real CLI redraws (`paneShowsPendingComposerText`), and hand-porting it
+blind was judged not worth the risk of *losing* prompts. We keep only the window
+widening, which is a strict improvement over 160ms and adds no new logic.
+
+**We use 3s where upstream uses 600ms** — a deliberate divergence: this host runs
+Claude Code, Playwright and several MCP servers, so redraws are slower here than
+upstream's baseline. Revisit on upgrade.
+
+**Real fix = upgrade the fork to 0.1.54-beta.3.** That also lands voice/audio
+upstream (so `feat/telegram-voice-audio-attachments` can be dropped too). Upstream
+has since restructured `src/channels/` heavily (api, catalog, integration,
+results, zalo…), so the **web channel needs porting** — that upgrade is a real
+piece of work, not a drive-by.
+
+### Original write-up (still accurate on cause)
+
 ## `fix/tmux-submit-false-negative` — duplicate runs of a prompt sent once
 
 **Symptom.** Scheduled loops posted their output twice (the Gmail digest most
@@ -39,7 +75,7 @@ moves, so a healthy submit is no slower. A genuinely dead pane now raises after
 **Keep the Gmail digest idempotency lock** (STEP 0 in `~/code/CLAUDE.md`) as a
 belt-and-braces guard until a few weeks of clean digests confirm this.
 
-**Upstream-worthy:** yes — nothing here is specific to this deployment.
+**Upstream-worthy:** no longer — upstream fixed it independently and better (see above).
 
 ---
 
@@ -72,7 +108,8 @@ reached the agent, and a moving live pin was invisible.
 
 ## Carried from before
 
-- `feat/telegram-voice-audio-attachments` — voice/audio downloads (merged upstream? verify on rebase).
+- `feat/telegram-voice-audio-attachments` — voice/audio downloads. **Upstream now
+  has this** (`TelegramVoice` is on `origin/main`), so drop this patch on upgrade.
 - `feat/web-channel` — WebSocket channel for the A2UI/kanban webapp. Carries 9
   pre-existing `tsc` errors (`"web"` not in the `"slack" | "telegram"` platform
   union). They predate these patches; `bun build` does not typecheck, so it ships.
