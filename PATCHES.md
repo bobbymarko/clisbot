@@ -13,6 +13,24 @@ Deploy: `./deploy.sh` (builds `dist/main.js`, restarts clisbot).
 `clisbot-src/dist/main.js`, so a build alone is enough to arm the next restart —
 there is no copy step, and a crash-restart will pick up whatever was last built.
 
+## ⛔ Never restart clisbot with `clisbot stop` / `clisbot start`
+
+clisbot runs under a **systemd user unit** with `Restart=always`, `RestartSec=15`,
+`Type=forking`. Stopping it with the CLI kills the process systemd is supervising,
+so systemd schedules **its own restart 15s later** — which collides with the
+instance you started by hand. The loser cannot bind the web-channel port:
+
+```
+error listen EADDRINUSE: address already in use 0.0.0.0:3099
+```
+
+Repeated collisions burn `StartLimitBurst` (5 in 120s) and can leave the service
+**dead altogether**. This broke the bot on 2026-07-12 (log ~04:42) and had to be
+debugged out of band.
+
+**Always let systemd own the lifecycle:** `systemctl --user restart clisbot.service`.
+`deploy.sh` does this now — don't "simplify" it back.
+
 ---
 
 ## ⚠️ `fix/tmux-submit-false-negative` — INTERIM. Upstream already fixed this, better.
