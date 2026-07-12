@@ -6,7 +6,10 @@ set -e
 cd "$(dirname "$0")"
 
 echo "[deploy] Building backend..."
-npm run build
+# bun is this repo's package manager (CLAUDE.md / AGENTS.md: `bun run build`).
+# Note: `bun run check` is NOT a usable pre-deploy gate — the web-channel branch
+# carries 9 pre-existing tsc errors, so it fails on a healthy tree.
+bun run build
 # dist/main.js is symlinked from ~/.npm-global/.../clisbot/dist/main.js — no copy needed
 
 # clisbot runs under the systemd user unit (Restart=always). Restart through
