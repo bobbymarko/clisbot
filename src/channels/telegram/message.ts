@@ -41,6 +41,20 @@ export type TelegramAudio = {
   title?: string;
 };
 
+export type TelegramLocation = {
+  latitude: number;
+  longitude: number;
+  horizontal_accuracy?: number;
+  live_period?: number;
+  heading?: number;
+};
+
+export type TelegramVenue = {
+  location?: TelegramLocation;
+  title?: string;
+  address?: string;
+};
+
 export type TelegramMessage = {
   message_id: number;
   date?: number;
@@ -54,6 +68,8 @@ export type TelegramMessage = {
   photo?: TelegramPhotoSize[];
   voice?: TelegramVoice;
   audio?: TelegramAudio;
+  location?: TelegramLocation;
+  venue?: TelegramVenue;
   forum_topic_created?: {
     name?: string;
   };
@@ -69,18 +85,82 @@ export type TelegramMessage = {
 export type TelegramUpdate = {
   update_id: number;
   message?: TelegramMessage;
+  edited_message?: TelegramMessage;
 };
 
+export function getTelegramUpdateMessage(update: TelegramUpdate) {
+  return update.message ?? update.edited_message;
+}
+
+export function getTelegramMessageLocation(message: TelegramMessage) {
+  const location = message.location ?? message.venue?.location;
+  if (
+    !location ||
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude)
+  ) {
+    return undefined;
+  }
+
+  return location;
+}
+
+/**
+ * A live-location pin reports movement as `edited_message` updates rather than new
+ * messages. Those carry a new position only — they are not something the user said again.
+ */
+export function isTelegramLiveLocationMove(update: TelegramUpdate) {
+  return Boolean(
+    !update.message &&
+      update.edited_message &&
+      getTelegramMessageLocation(update.edited_message),
+  );
+}
+
 export function getTelegramUpdateSkipReason(update: TelegramUpdate) {
-  if (!update.message) {
+  const message = getTelegramUpdateMessage(update);
+  if (!message) {
     return "no-message";
   }
 
-  if (!update.message.from?.id && !update.message.from?.is_bot) {
+  // Editing a text message must not re-run the agent on a prompt the user already sent.
+  // Location is the one edit worth acting on (live-location movement).
+  if (!update.message && !getTelegramMessageLocation(message)) {
+    return "edited-without-location";
+  }
+
+  if (!message.from?.id && !message.from?.is_bot) {
     return "missing-user";
   }
 
   return null;
+}
+
+export function formatTelegramLocationText(message: TelegramMessage) {
+  const location = getTelegramMessageLocation(message);
+  if (!location) {
+    return "";
+  }
+
+  const details: string[] = [];
+  if (message.venue?.title) {
+    details.push(message.venue.title);
+  }
+  if (message.venue?.address) {
+    details.push(message.venue.address);
+  }
+  if (Number.isFinite(location.horizontal_accuracy)) {
+    details.push(`±${Math.round(location.horizontal_accuracy as number)}m`);
+  }
+  if (Number.isFinite(location.heading)) {
+    details.push(`heading ${Math.round(location.heading as number)}°`);
+  }
+  if (location.live_period) {
+    details.push("live location");
+  }
+
+  const suffix = details.length > 0 ? ` (${details.join(", ")})` : "";
+  return `[location] ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}${suffix}`;
 }
 
 export function hasTelegramBotMention(text: string, botUsername?: string) {
