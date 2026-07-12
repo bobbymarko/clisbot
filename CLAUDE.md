@@ -44,6 +44,7 @@ When documents disagree, use this order:
 Use this ownership map before editing:
 - `src/channels`: Slack and Telegram surfaces, route handling, rendering, pairing, follow-up behavior
 - `src/agents`: durable agent state, sessions, queueing, loops, attachments, run lifecycle
+  - migrations that change session-key or agent shape must rewrite persisted loops, or they orphan silently — see `docs/lessons/2026-05-29-session-key-migrations-orphan-persisted-loops.md`
 - `src/auth`: roles, permissions, owner claim, authorization resolution
 - `src/config`: schema, loading, credentials, templates
 - `src/control`: operator CLI, runtime lifecycle, health, status, logs, bootstrap
