@@ -24,15 +24,20 @@ import {
   retryTelegramPollingConflict,
 } from "./api.ts";
 import {
+  formatTelegramLocationText,
+  getTelegramMessageLocation,
+  getTelegramUpdateMessage,
   getTelegramUpdateSkipReason,
   hasForeignTelegramMention,
   hasTelegramBotMention,
   isReplyToTelegramBot,
   isTelegramBotOriginatedMessage,
+  isTelegramLiveLocationMove,
   stripTelegramBotMention,
   type TelegramMessage,
   type TelegramUpdate,
 } from "./message.ts";
+import { TelegramLocationStore } from "./location-store.ts";
 import { resolveTelegramUnroutedGuidanceModeForEvent } from "./feedback.ts";
 import {
   resolveTelegramConversationTarget,
@@ -133,6 +138,17 @@ const TELEGRAM_POLLING_CONFLICT_BACKOFF_MAX_DELAY_MS = 30_000;
 const TELEGRAM_POLLING_CONFLICT_SLEEP_SLICE_MS = 250;
 const TELEGRAM_POLLING_CONFLICT_OWNER_ALERT_DELAY_MS = 60_000;
 const TELEGRAM_POLLING_CONFLICT_OWNER_ALERT_REPEAT_MS = 15 * 60_000;
+
+function buildTelegramSenderName(message: TelegramMessage) {
+  return (
+    [message.from?.first_name, message.from?.last_name]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join(" ")
+      .trim() ||
+    message.from?.username?.trim() ||
+    undefined
+  );
+}
 
 function computeTelegramPollingConflictBackoffDelayMs(baseDelayMs: number, attempt: number) {
   const safeBaseDelayMs = Math.max(1, baseDelayMs);
@@ -248,6 +264,7 @@ export class TelegramPollingService {
   private pollingConflictAttempt = 0;
   private readonly inFlightUpdates = new Set<Promise<void>>();
   private readonly processingIndicators = new ConversationProcessingIndicatorCoordinator();
+  private readonly locationStore = new TelegramLocationStore();
 
   constructor(
     private readonly loadedConfig: LoadedConfig,
@@ -351,7 +368,7 @@ export class TelegramPollingService {
           {
             timeout: telegramConfig.polling.timeoutSeconds,
             offset: this.nextUpdateId,
-            allowed_updates: ["message"],
+            allowed_updates: ["message", "edited_message"],
           },
           {
             signal: controller.signal,
@@ -460,8 +477,38 @@ export class TelegramPollingService {
       return;
     }
 
-    const message = update.message as TelegramMessage;
-    const rawText = `${message.text ?? message.caption ?? ""}`.trim();
+    const message = getTelegramUpdateMessage(update) as TelegramMessage;
+
+    const location = getTelegramMessageLocation(message);
+    if (location) {
+      try {
+        await this.locationStore.record({
+          chatId: String(message.chat.id),
+          senderId: message.from?.id != null ? String(message.from.id) : undefined,
+          senderName: buildTelegramSenderName(message),
+          latitude: location.latitude,
+          longitude: location.longitude,
+          accuracyMeters: location.horizontal_accuracy,
+          headingDegrees: location.heading,
+          live: Boolean(location.live_period),
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error("telegram location record failed", error);
+      }
+    }
+
+    // A live pin re-reports its position every few seconds. Refresh last-known
+    // location and stop — prompting the agent on every metre travelled would flood it.
+    if (isTelegramLiveLocationMove(update)) {
+      await this.processedEventsStore.markCompleted(eventId);
+      return;
+    }
+
+    const messageText = `${message.text ?? message.caption ?? ""}`.trim();
+    const rawText = [messageText, formatTelegramLocationText(message)]
+      .filter((part) => part.length > 0)
+      .join("\n");
     const slashCommand = parseAgentCommand(rawText, {
       botUsername: this.botUsername,
       commandPrefixes: this.getBotConfig().commandPrefixes,
@@ -661,10 +708,7 @@ export class TelegramPollingService {
         text: slashCommand ? "" : textBody,
         senderId:
           message.from?.id != null ? String(message.from.id).trim() : undefined,
-        senderName: [message.from?.first_name, message.from?.last_name]
-          .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
-          .join(" ")
-          .trim() || message.from?.username?.trim() || undefined,
+        senderName: buildTelegramSenderName(message),
       });
     }
     if (routeInfo.route.requireMention && !wasMentioned) {
@@ -914,7 +958,7 @@ export class TelegramPollingService {
           "getUpdates",
           {
             timeout: 0,
-            allowed_updates: ["message"],
+            allowed_updates: ["message", "edited_message"],
           },
         ),
       retryDelayMs: telegramConfig.polling.retryDelayMs,

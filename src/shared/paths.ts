@@ -61,6 +61,10 @@ export function getDefaultSessionStorePath(env: NodeJS.ProcessEnv = process.env)
   return join(getDefaultStateDir(env), "sessions.json");
 }
 
+export function getDefaultTelegramLocationPath(env: NodeJS.ProcessEnv = process.env) {
+  return join(getDefaultStateDir(env), "telegram-locations.json");
+}
+
 export function getDefaultPairingDir(env: NodeJS.ProcessEnv = process.env) {
   return join(getDefaultStateDir(env), "pairing");
 }
@@ -101,6 +105,7 @@ export const DEFAULT_CREDENTIALS_DIR = getDefaultCredentialsDir();
 export const DEFAULT_TMUX_SOCKET_PATH = getDefaultTmuxSocketPath();
 export const DEFAULT_PROCESSED_EVENTS_PATH = getDefaultProcessedEventsPath();
 export const DEFAULT_SESSION_STORE_PATH = getDefaultSessionStorePath();
+export const DEFAULT_TELEGRAM_LOCATION_PATH = getDefaultTelegramLocationPath();
 export const DEFAULT_PAIRING_DIR = getDefaultPairingDir();
 export const DEFAULT_ACTIVITY_STORE_PATH = getDefaultActivityStorePath();
 export const DEFAULT_RUNTIME_HEALTH_PATH = getDefaultRuntimeHealthPath();
