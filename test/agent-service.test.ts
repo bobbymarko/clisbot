@@ -1640,7 +1640,8 @@ describe("AgentService session identity", () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
-  });
+    // An unconfirmed submit is only declared after both confirmation windows elapse (~6s).
+  }, 20_000);
 
   test("recovers when the tmux socket exists but the server is not running", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "clisbot-agent-service-"));

@@ -15,7 +15,12 @@ const PASTE_CONFIRM_MAX_ATTEMPTS = 3;
 const PASTE_CAPTURE_REVALIDATE_POLL_INTERVAL_MS = 40;
 const PASTE_CAPTURE_REVALIDATE_MAX_WAIT_MS = 160;
 const SUBMIT_CONFIRM_POLL_INTERVAL_MS = 40;
-const SUBMIT_CONFIRM_MAX_WAIT_MS = 160;
+// A submitted prompt always repaints the pane, but on a loaded host that repaint can take
+// well over a second. Anything shorter reports a delivered prompt as unconfirmed, and the
+// caller reacts to that by killing the session and re-running the prompt — so a stingy
+// budget here is what produces duplicate runs. The wait ends as soon as the pane moves,
+// so a generous ceiling costs nothing on the happy path.
+const SUBMIT_CONFIRM_MAX_WAIT_MS = 3_000;
 const SUBMIT_SNAPSHOT_CONFIRM_POLL_INTERVAL_MS = 40;
 const SUBMIT_SNAPSHOT_CONFIRM_MAX_WAIT_MS = 320;
 const POST_STATUS_SETTLE_POLL_INTERVAL_MS = 40;

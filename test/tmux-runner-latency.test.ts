@@ -1027,6 +1027,7 @@ describe("tmux runner latency behavior", () => {
     expect(enterCount).toBe(1);
   });
 
+  // Declaring the pane dead now costs both confirmation windows (~6s) rather than 320ms.
   test("submitTmuxSessionInput fails when pane state never confirms submit", async () => {
     let sendLiteralCount = 0;
     let state = {
@@ -1066,5 +1067,5 @@ describe("tmux runner latency behavior", () => {
     ).rejects.toThrow("tmux submit was not confirmed after Enter");
 
     expect(sendLiteralCount).toBe(1);
-  });
+  }, 15_000);
 });
