@@ -1,27 +1,51 @@
 import type { ChannelPlugin } from "../integration/channel-plugin.ts";
+import {
+  getChannelProviderBotRecords,
+  listEnabledBotIds,
+} from "../../config/channels/channel-bot-records.ts";
 import type { WebBotConfig } from "./service.ts";
 import { WebRuntimeService } from "./service.ts";
 
-function getWebConfig(loadedConfig: Parameters<ChannelPlugin["isEnabled"]>[0]): WebBotConfig | null {
-  const raw = loadedConfig.raw as {
-    bots?: {
-      web?: {
-        apiKey?: string; port?: number; agentId?: string; ownerId?: string;
-        senderName?: string;
-        mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
-      };
-    };
-  };
-  const web = raw.bots?.web;
-  if (!web?.apiKey) return null;
-  return {
-    port: web.port ?? 3099,
-    apiKey: web.apiKey,
-    agentId: web.agentId ?? loadedConfig.raw.agents.defaults.defaultAgentId ?? "default",
-    ownerId: web.ownerId,
-    senderName: web.senderName,
-    mcpServers: web.mcpServers,
-  };
+type LoadedConfigParam = Parameters<ChannelPlugin["isEnabled"]>[0];
+
+type WebBotRecord = {
+  enabled?: boolean;
+  apiKey?: string;
+  port?: number;
+  agentId?: string;
+  ownerId?: string;
+  senderName?: string;
+  mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
+};
+
+// A bot is only usable once it carries an apiKey — that key is the whole of the
+// web channel's authentication, so a keyless record is inert rather than open.
+function listWebBots(loadedConfig: LoadedConfigParam): Array<{ botId: string; config: WebBotConfig }> {
+  const provider = loadedConfig.raw.bots.web;
+  if (!provider?.defaults?.enabled) {
+    return [];
+  }
+  const records = getChannelProviderBotRecords(provider) as Record<string, WebBotRecord | undefined>;
+  const providerDefaults = provider.defaults as { port?: number; agentId?: string };
+  const defaultPort = providerDefaults.port ?? 3099;
+  return listEnabledBotIds(records)
+    .map((botId) => ({ botId, record: records[botId] }))
+    .filter((entry): entry is { botId: string; record: WebBotRecord } =>
+      Boolean(entry.record?.apiKey?.trim()))
+    .map(({ botId, record }) => ({
+      botId,
+      config: {
+        port: record.port ?? defaultPort,
+        apiKey: record.apiKey as string,
+        agentId: record.agentId
+          ?? providerDefaults.agentId
+          ?? loadedConfig.raw.agents.defaults.defaultAgentId
+          ?? "default",
+        ownerId: record.ownerId,
+        senderName: record.senderName,
+        mcpServers: record.mcpServers,
+      },
+    }));
 }
 
 export const webChannelPlugin: ChannelPlugin = {
@@ -33,12 +57,8 @@ export const webChannelPlugin: ChannelPlugin = {
     surfaceKinds: ["dm"],
     messageActions: [],
   },
-  isEnabled: (loadedConfig) => !!getWebConfig(loadedConfig),
-  listBots: (loadedConfig) => {
-    const config = getWebConfig(loadedConfig);
-    if (!config) return [];
-    return [{ botId: "default", config }];
-  },
+  isEnabled: (loadedConfig) => listWebBots(loadedConfig).length > 0,
+  listBots: (loadedConfig) => listWebBots(loadedConfig),
   createRuntimeService: (context, bot) =>
     new WebRuntimeService(
       context.loadedConfig,
@@ -70,3 +90,5 @@ export const webChannelPlugin: ChannelPlugin = {
   resolveMessageSurface: () => null,
   resolveMessageReplyTarget: () => null,
 };
+
+export default webChannelPlugin;

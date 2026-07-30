@@ -103,6 +103,7 @@ describe("channel bots", () => {
       { channel: "api", defaults: config.bots.api.defaults },
       { channel: "slack", defaults: config.bots.slack.defaults },
       { channel: "telegram", defaults: config.bots.telegram.defaults },
+      { channel: "web", defaults: config.bots.web.defaults },
       { channel: "zalo-bot", defaults: config.bots.zaloBot.defaults },
       { channel: "zalo-personal", defaults: config.bots.zaloPersonal.defaults },
     ]);

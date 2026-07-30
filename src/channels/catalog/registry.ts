@@ -13,6 +13,7 @@ import type {
 import apiChannelPlugin from "../api/plugin.ts";
 import slackChannelPlugin from "../slack/plugin.ts";
 import telegramChannelPlugin from "../telegram/plugin.ts";
+import webChannelPlugin from "../web/plugin.ts";
 import zaloBotChannelPlugin from "../zalo-bot/plugin.ts";
 import zaloPersonalChannelPlugin from "../zalo-personal/plugin.ts";
 
@@ -21,6 +22,7 @@ export const CHANNEL_PLUGINS = [
   apiChannelPlugin,
   slackChannelPlugin,
   telegramChannelPlugin,
+  webChannelPlugin,
   zaloBotChannelPlugin,
   zaloPersonalChannelPlugin,
 ] as const satisfies readonly ChannelPlugin[];

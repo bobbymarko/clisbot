@@ -27,9 +27,12 @@ function joinChannels(values: readonly { channel: string }[]) {
   return values.map((value) => value.channel).join(",");
 }
 
+// api authenticates per-ingress, zalo-personal reuses a logged-in session, and web
+// authenticates on a shared apiKey held in config — none of them carry a provider
+// bot token, so none of them ship a credential contract.
 function joinCredentialChannels() {
   return listBuiltInChannelDirectories()
-    .filter((channel) => channel !== "api" && channel !== "zalo-personal")
+    .filter((channel) => channel !== "api" && channel !== "web" && channel !== "zalo-personal")
     .join(",");
 }
 

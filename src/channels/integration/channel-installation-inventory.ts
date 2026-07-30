@@ -10,6 +10,7 @@ import type { ChannelSurfaceConfigTargetContract } from "../config/surface-confi
 import apiChannelInstallation from "../api/installation.ts";
 import slackChannelInstallation from "../slack/installation.ts";
 import telegramChannelInstallation from "../telegram/installation.ts";
+import webChannelInstallation from "../web/installation.ts";
 import zaloBotChannelInstallation from "../zalo-bot/installation.ts";
 import zaloPersonalChannelInstallation from "../zalo-personal/installation.ts";
 
@@ -29,6 +30,7 @@ export const CHANNEL_INSTALLATIONS = [
   apiChannelInstallation,
   slackChannelInstallation,
   telegramChannelInstallation,
+  webChannelInstallation,
   zaloBotChannelInstallation,
   zaloPersonalChannelInstallation,
 ] as const satisfies readonly ChannelInstallation[];
