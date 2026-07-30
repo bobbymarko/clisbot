@@ -6,9 +6,9 @@ summary: First-start reliability depends on treating trust prompts and dead tmux
 related:
   - docs/architecture/runtime-architecture.md
   - docs/features/runners/README.md
-  - src/agents/runtime/agent-service.ts
+  - src/agents/agent-service.ts
   - src/runners/tmux/client.ts
-  - test/agent-service/agent-service.test.ts
+  - test/agent-service.test.ts
   - test/tmux-client.integration.test.ts
 ---
 

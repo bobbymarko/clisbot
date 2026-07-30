@@ -6,10 +6,10 @@ summary: Live Slack and tmux validation should separate real product rendering b
 related:
   - docs/features/channels/README.md
   - docs/tests/features/channels/README.md
-  - src/runners/transcript/transcript-normalization.ts
-  - src/runners/transcript/transcript-rendering.ts
+  - src/shared/transcript-normalization.ts
+  - src/shared/transcript-rendering.ts
   - src/channels/slack/service.ts
-  - test/text/text.test.ts
+  - test/text.test.ts
 ---
 
 ## Context
@@ -54,5 +54,5 @@ When debugging live Slack or Telegram rendering:
 This lesson was applied by:
 
 - fixing transcript normalization for soft-wrapped tmux fragments
-- adding a regression test in `test/text/text.test.ts`
+- adding a regression test in `test/text.test.ts`
 - avoiding unnecessary rendering changes based only on `slack-cli` CSV flattening

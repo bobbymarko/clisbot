@@ -7,7 +7,7 @@ The stable implementation contract lives in:
 - `docs/architecture/architecture-overview.md`
 - `docs/architecture/surface-architecture.md`
 - `docs/architecture/runtime-architecture.md`
-- `docs/architecture/domain-language.md`
+- `docs/architecture/model-taxonomy-and-boundaries.md`
 
 If implementation conflicts with those docs:
 1. stop
@@ -44,11 +44,12 @@ When documents disagree, use this order:
 Use this ownership map before editing:
 - `src/channels`: Slack and Telegram surfaces, route handling, rendering, pairing, follow-up behavior
 - `src/agents`: durable agent state, sessions, queueing, loops, attachments, run lifecycle
+  - migrations that change session-key or agent shape must rewrite persisted loops, or they orphan silently — see `docs/lessons/2026-05-29-session-key-migrations-orphan-persisted-loops.md`
 - `src/auth`: roles, permissions, owner claim, authorization resolution
 - `src/config`: schema, loading, credentials, templates
 - `src/control`: operator CLI, runtime lifecycle, health, status, logs, bootstrap
 - `src/runners`: execution backends, currently tmux
-- `src/infra`: small host/runtime primitives only, with no product concepts
+- `src/shared`: cross-cutting utilities
 - `test/`: regression and behavior coverage
 - `docs/tests/`: readable validation scenarios when behavior needs explicit ground truth
 
@@ -98,7 +99,7 @@ Follow these defaults unless the user explicitly asks for a different tradeoff:
 - DRY: prefer one shared implementation path over parallel wrappers or duplicated mutations
 - backend-facing models must stay resource-oriented and revision-aware
 - do not leak transient runtime state into persistence contracts
-- use `docs/architecture/domain-language.md` for canonical vocabulary, model naming, ownership, lifecycle, and mapping boundaries
+- use `docs/architecture/model-taxonomy-and-boundaries.md` for model naming, ownership, lifecycle, and mapping boundaries
 - do not introduce aggregate or backend-for-frontend endpoints unless the simpler resource model is documented as insufficient
 - document intentional architecture exceptions before implementing them
 
