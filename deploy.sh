@@ -5,10 +5,14 @@ set -e
 
 cd "$(dirname "$0")"
 
+# Typecheck IS a usable gate now. The 9 errors the old web-channel branch carried
+# came from ChannelId being a closed "slack" | "telegram" union; upstream widened
+# it to string, so the tree is clean and a regression here should stop the deploy.
+echo "[deploy] Typechecking..."
+bun run typecheck
+
 echo "[deploy] Building backend..."
 # bun is this repo's package manager (CLAUDE.md / AGENTS.md: `bun run build`).
-# Note: `bun run check` is NOT a usable pre-deploy gate — the web-channel branch
-# carries 9 pre-existing tsc errors, so it fails on a healthy tree.
 bun run build
 # dist/main.js is symlinked from ~/.npm-global/.../clisbot/dist/main.js — no copy needed
 
