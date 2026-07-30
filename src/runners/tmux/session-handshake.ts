@@ -26,7 +26,7 @@ const SUBMIT_CONFIRM_POLL_INTERVAL_MS = 40;
 // window only slows down the genuine-failure path. The previous 160ms/320ms
 // windows produced false TmuxSubmitUnconfirmedError under host load or slow
 // CLI redraws even though Enter had truthfully submitted.
-const SUBMIT_CONFIRM_MAX_WAIT_MS = 600;
+const SUBMIT_CONFIRM_MAX_WAIT_MS = 3_000;
 const SUBMIT_ENTER_MAX_ATTEMPTS = 3;
 const POST_STATUS_SETTLE_POLL_INTERVAL_MS = 40;
 const POST_STATUS_SETTLE_QUIET_WINDOW_MS = 80;
