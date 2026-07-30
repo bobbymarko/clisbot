@@ -51,6 +51,9 @@ function listWebBots(loadedConfig: LoadedConfigParam): Array<{ botId: string; co
 export const webChannelPlugin: ChannelPlugin = {
   id: "web",
   displayName: "Web",
+  // Required at runtime by resolveChannelInteractionRenderer even though the type
+  // marks it optional. The browser client renders markdown.
+  interactionRenderer: "markdown",
   // The web channel is an owner-only WebSocket surface. It has no CLI message
   // actions and no addressable targets, so it exposes the DM surface kind only.
   capabilities: {
