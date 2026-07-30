@@ -26,7 +26,15 @@ const SUBMIT_CONFIRM_POLL_INTERVAL_MS = 40;
 // window only slows down the genuine-failure path. The previous 160ms/320ms
 // windows produced false TmuxSubmitUnconfirmedError under host load or slow
 // CLI redraws even though Enter had truthfully submitted.
-const SUBMIT_CONFIRM_MAX_WAIT_MS = 3_000;
+// Overridable because the right value is a property of the host, not of clisbot:
+// a machine also running browsers, MCP servers and other agents redraws panes far
+// slower than a quiet one. Set CLISBOT_SUBMIT_CONFIRM_MAX_WAIT_MS to widen it.
+function resolveSubmitConfirmMaxWaitMs() {
+  const raw = Number(process.env.CLISBOT_SUBMIT_CONFIRM_MAX_WAIT_MS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 600;
+}
+
+const SUBMIT_CONFIRM_MAX_WAIT_MS = resolveSubmitConfirmMaxWaitMs();
 const SUBMIT_ENTER_MAX_ATTEMPTS = 3;
 const POST_STATUS_SETTLE_POLL_INTERVAL_MS = 40;
 const POST_STATUS_SETTLE_QUIET_WINDOW_MS = 80;
