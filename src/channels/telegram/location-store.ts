@@ -1,6 +1,6 @@
 import { dirname } from "node:path";
-import { ensureDir, readTextFile, writeTextFile } from "../../shared/fs.ts";
-import { getDefaultTelegramLocationPath } from "../../shared/paths.ts";
+import { ensureDir, readTextFile, writeTextFile } from "../../infra/fs.ts";
+import { getDefaultTelegramLocationPath } from "../../infra/paths.ts";
 
 export type TelegramLocationRecord = {
   chatId: string;
