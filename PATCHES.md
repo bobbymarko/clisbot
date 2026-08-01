@@ -159,13 +159,37 @@ the message entirely when nothing survives. Blocks **without** a marker are left
 alone so a genuine reply that mentions `<system>` still delivers. 6 tests in
 `test/agent-prompt.test.ts`.
 
-**Upstream-worthy:** yes — no existing issue on `longbkit/clisbot` (searched
-2026-08-01). Note this patch is deliberately a *containment* fix: it makes the
-leak impossible without changing when the pane fallback fires. A PR should
-probably also argue the root cause — either restore the unconditional bail for
-handed-off message-tool routes, or widen/remove the 3 s grace — but that changes
-delivery behaviour upstream widened on purpose, so it belongs in the PR
-discussion rather than in a fix we ship to ourselves unilaterally.
+**Upstream-worthy:** yes. Nothing addresses it as of 2026-08-01 — 4 open PRs (none
+on settlement), 2 issues total (#14 is Claude-adjacent but is about permission
+prompts), no commits on `origin/main` touching `interaction-processing.ts` or
+`rendering.ts`, and a GitHub-wide code search for the guard returns exactly one
+hit: upstream's own file. We would be first, so the PR has to carry its own
+evidence — lead with the 1274-char pane measurement.
+
+**Shape the PR like upstream's own per-CLI idiom, not like this patch.**
+`DEFAULT_AGENT_TOOL_TEMPLATES` (`config/runtime/agent-tool-presets.ts`) is where
+per-CLI differences live, as *data* rather than scattered `if (tool === "claude")`.
+It already carries the exact analogue: `startupReadyPattern`, a per-CLI regex
+matched against the pane (codex `(?:^|\s)›\s`, gemini `Type your message or
+@path/to/file`, **claude: unset**), plus gemini-only `startupBlockers`. So
+"recognise this CLI's screen state" is established, declarative and per-tool —
+sitting next to `paneShowsRunnerExitSentinel` / `paneShowsResumeRejected`.
+
+A new `AgentToolTemplate` field — idle-chrome pattern, or a per-CLI
+"is this pane effectively empty" predicate — is far likelier to land than a strip
+function that hardcodes clisbot's own prompt text. Caveat: the table is dominant
+but not absolute; `buildRunnerFromToolTemplate` still special-cases
+`if (toolId === "codex")`.
+
+Keep this sanitizer locally either way — it holds regardless of CLI or timing
+path and costs nothing. Propose the template field; run the belt-and-braces.
+
+**Corroborating the Codex-first read** (structural, not inference from one bug):
+in that same table `claude` is the thinnest of the three entries — no
+`startupReadyPattern`, and `capture.mode: "off"` where codex and gemini both
+capture session IDs. Recent upstream commits before the release are likewise
+codex-focused ("classify resume and codex state-db startup failures", "track
+codex runner stability strategy").
 
 ---
 
