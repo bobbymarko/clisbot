@@ -126,90 +126,70 @@ reached the agent, and a moving live pin was invisible.
 
 ## `fix/pane-settlement-prompt-leak` — the injected `<system>` block posted into chats
 
-**Symptom.** Bots periodically post their own system prompt into the conversation
-— the whole `<system>` envelope, reply-command instructions and all — as if the
-agent had sent it. The agent never called `message send`. Became frequent right
-after the 0.1.43 → 0.1.54-beta.3 upgrade (Bob, 2026-08-01).
+**Symptom.** Bots periodically post their own system prompt into the conversation —
+the whole `<system>` envelope, reply-command instructions and all — as if the agent
+had sent it. The agent never called `message send`. Became frequent right after the
+0.1.43 → 0.1.54-beta.3 upgrade (Bob, 2026-08-01).
 
-**Cause.** Upstream, not ours — `1620e79` ("harden queued message delivery",
-Long Luong), present verbatim in `v0.1.54-beta.3`. When a run finishes without a
-recorded message-tool final reply, `interaction-processing.ts` settles from the
-**tmux pane snapshot**, and the pane still shows the prompt clisbot just typed
-into it. Two 0.1.54 changes push far more runs down that path:
-1. `shouldSkipEmptyCompletionSettlement` requires `nextState.body.trim() === ""`.
-   0.1.43 bailed unconditionally on `!paneManagedDelivery && messageToolPreviewHandedOff`,
-   so a **non-empty** pane is now delivered where it used to be dropped.
-2. `waitForMessageToolFinalReply` gained a freshness requirement on
-   `messageToolFinalReplyAt` bounded by a 3 s `MESSAGE_TOOL_FINAL_GRACE_WINDOW_MS`.
-   0.1.43 raced it against the run result with no deadline.
+**Trigger, confirmed from the transcript — not inferred.** The 2026-08-01 12:53 UTC
+Nova run (`99b7d88f…`, lines 31832-31852) did its work and then answered in **plain
+text**; the only occurrence of "message send" in the whole run is inside the injected
+prompt itself. So the agent **never called the message tool at all**. This is *not*
+the 3 s detection race — detection cannot miss a reply that never happened.
 
-**The guard cannot fire under Claude Code — lead with this in the PR.** `body` is
-`snapshot.trim()` (`rendering.ts:28`), i.e. the *entire tmux pane*, so
-`nextState.body.trim() === ""` requires a **completely blank pane**. Measured on a
-live idle Claude Code session: **1274 non-whitespace characters** — the TUI keeps an
-input box, status line and permission-mode line on screen permanently. The condition
-is written for a CLI that exits or clears the screen on completion; under Claude Code
-it is never true, so the skip never runs and every message-tool run that misses the
-3 s window dumps the pane. Consistent with upstream being developed Codex-first.
+**Why the pane fallback is right and must stay.** Nova's plain-text answer was a good
+one the user needed (a $500 transaction correctly recategorised). With no fallback he
+would have received **silence**. `settleFromPaneResult` exists to rescue an agent that
+forgets the tool, and it is load-bearing. Reverting to 0.1.43's unconditional bail
+would trade a leak for lost replies — a worse deal for the user.
 
-**Fix.** `stripEchoedAgentPrompt()` in `agent-prompt.ts` removes any `<system>`
-block carrying one of our own prompt markers, tolerates a truncated block with no
-closing tag, and drops bare `<user>` tag lines; `settleFromPaneResult` suppresses
-the message entirely when nothing survives. Blocks **without** a marker are left
-alone so a genuine reply that mentions `<system>` still delivers. 6 tests in
-`test/agent-prompt.test.ts`.
+**Root cause.** clisbot **writes a prompt into the pane, then reads that same pane back
+as output without discounting its own injection.** The snapshot is 160 lines of
+scrollback (`captureLines: 160`), so the echoed prompt is squarely inside it as
+content. Everything else is a contributing factor, not the cause:
+- `shouldSkipEmptyCompletionSettlement` requires `nextState.body.trim() === ""`, and
+  `body` is `snapshot.trim()` — the whole pane. Measured on a live idle Claude Code
+  session: **1274 non-whitespace characters**. The guard can never fire under a CLI
+  with a persistent TUI, so it does no work here. (0.1.43 bailed unconditionally.)
+- `waitForMessageToolFinalReply` caps detection at 3 s
+  (`MESSAGE_TOOL_FINAL_GRACE_WINDOW_MS`) where 0.1.43 raced the run with no deadline.
+  A real contributor to *other* instances; not this one.
 
-**Upstream-worthy:** yes. Nothing addresses it as of 2026-08-01 — 4 open PRs (none
-on settlement), 2 issues total (#14 is Claude-adjacent but is about permission
-prompts), no commits on `origin/main` touching `interaction-processing.ts` or
-`rendering.ts`, and a GitHub-wide code search for the guard returns exactly one
-hit: upstream's own file. We would be first, so the PR has to carry its own
-evidence — lead with the 1274-char pane measurement.
+**Fix.** `stripEchoedAgentPrompt()` in `agent-prompt.ts` removes any `<system>` block
+carrying one of our own prompt markers, tolerates a truncated block with no closing
+tag, and drops bare `<user>` tag lines; `settleFromPaneResult` suppresses the message
+entirely when nothing survives. Blocks **without** a marker are left alone so a genuine
+reply mentioning `<system>` still delivers. 6 tests in `test/agent-prompt.test.ts`.
+Stripping text you injected yourself before reading it back is correctness, not a
+band-aid — this is the principled fix, not containment.
 
-**⚠️ A per-CLI template field does NOT fix this leak — corrected 2026-08-01.**
-`captureLines` defaults to **160**, so the snapshot is 160 lines of *scrollback*,
-not the visible screen. A live pane captured that way holds 4 prompt-echo markers:
-the echoed prompt is genuine scrollback **content**, not TUI chrome. Any
-"is this pane effectively empty" predicate sees 160 lines of real content and
-delivers it. The idiom note below is about how upstream expresses per-CLI pane
-knowledge — useful, but aimed at a different problem than this bug.
+**Upstream-worthy:** yes. Nothing addresses it as of 2026-08-01 — 4 open PRs (none on
+settlement), 2 issues total (#14 is Claude-adjacent but about permission prompts), no
+commits on `origin/main` touching `interaction-processing.ts` or `rendering.ts`, and a
+GitHub-wide code search for the guard returns exactly one hit: upstream's own file. We
+would be first, so the PR must carry its own evidence. Frame it as **keep the fallback,
+exclude the injected prompt from what it delivers** — that takes nothing away from
+users who depend on the rescue path.
 
-**The root, and what the PR should argue.** On a `responseMode: "message-tool"`
-route the contract is that the agent replies via the tool, so a scrollback dump is
-never a correct user-facing reply — clean or not. With no recorded reply the right
-behaviour is to send nothing, or a short "run finished without a reply" note.
-0.1.43 did that in one line; 0.1.54 broke it twice over — narrowed the bail to
-empty panes **and** capped reply detection at 3 s where 0.1.43 waited for the run.
-Either alone would have been survivable.
+**Dead ends — do not re-derive these.**
+- *"Add a per-CLI idle-pane predicate to `AgentToolTemplate`."* Tempting, because
+  `DEFAULT_AGENT_TOOL_TEMPLATES` really is where upstream puts per-CLI pane knowledge
+  (`startupReadyPattern`: codex `(?:^|\s)›\s`, gemini `Type your message or
+  @path/to/file`, claude unset; plus gemini-only `startupBlockers`). But the capture is
+  scrollback, so the echoed prompt is *content*, not chrome — an "is this pane empty"
+  predicate still delivers it. Right idiom, wrong problem.
+- *"Restore 0.1.43's unconditional bail."* Costs the user real replies. See above.
 
-**Before writing the PR**, determine which trigger produced the observed leak:
-the agent never called the tool, or it called it and the record landed after the
-3 s window. Different fixes; don't guess.
+**Corroborating the Codex-first read** (structural, not inference from one bug): in
+that same table `claude` is the thinnest of the three entries — no
+`startupReadyPattern`, and `capture.mode: "off"` where codex and gemini both capture
+session IDs. Recent upstream commits before the release are likewise codex-focused
+("classify resume and codex state-db startup failures", "track codex runner stability
+strategy").
 
-**Upstream's per-CLI idiom (for reference, not for this fix).**
-`DEFAULT_AGENT_TOOL_TEMPLATES` (`config/runtime/agent-tool-presets.ts`) is where
-per-CLI differences live, as *data* rather than scattered `if (tool === "claude")`.
-It already carries the exact analogue: `startupReadyPattern`, a per-CLI regex
-matched against the pane (codex `(?:^|\s)›\s`, gemini `Type your message or
-@path/to/file`, **claude: unset**), plus gemini-only `startupBlockers`. So
-"recognise this CLI's screen state" is established, declarative and per-tool —
-sitting next to `paneShowsRunnerExitSentinel` / `paneShowsResumeRejected`.
-
-A new `AgentToolTemplate` field — idle-chrome pattern, or a per-CLI
-"is this pane effectively empty" predicate — is far likelier to land than a strip
-function that hardcodes clisbot's own prompt text. Caveat: the table is dominant
-but not absolute; `buildRunnerFromToolTemplate` still special-cases
-`if (toolId === "codex")`.
-
-Keep this sanitizer locally either way — it holds regardless of CLI or timing
-path and costs nothing. Propose the template field; run the belt-and-braces.
-
-**Corroborating the Codex-first read** (structural, not inference from one bug):
-in that same table `claude` is the thinnest of the three entries — no
-`startupReadyPattern`, and `capture.mode: "off"` where codex and gemini both
-capture session IDs. Recent upstream commits before the release are likewise
-codex-focused ("classify resume and codex state-db startup failures", "track
-codex runner stability strategy").
+**Open, and not a clisbot bug:** Nova ignored an explicit instruction to reply via the
+tool. If that is frequent across bots, the fallback is carrying more weight than
+anyone intended. Worth measuring.
 
 ---
 
