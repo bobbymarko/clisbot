@@ -124,6 +124,42 @@ reached the agent, and a moving live pin was invisible.
 
 ---
 
+## `fix/pane-settlement-prompt-leak` — the injected `<system>` block posted into chats
+
+**Symptom.** Bots periodically post their own system prompt into the conversation
+— the whole `<system>` envelope, reply-command instructions and all — as if the
+agent had sent it. The agent never called `message send`. Became frequent right
+after the 0.1.43 → 0.1.54-beta.3 upgrade (Bob, 2026-08-01).
+
+**Cause.** Upstream, not ours — `1620e79` ("harden queued message delivery",
+Long Luong), present verbatim in `v0.1.54-beta.3`. When a run finishes without a
+recorded message-tool final reply, `interaction-processing.ts` settles from the
+**tmux pane snapshot**, and the pane still shows the prompt clisbot just typed
+into it. Two 0.1.54 changes push far more runs down that path:
+1. `shouldSkipEmptyCompletionSettlement` requires `nextState.body.trim() === ""`.
+   0.1.43 bailed unconditionally on `!paneManagedDelivery && messageToolPreviewHandedOff`,
+   so a **non-empty** pane is now delivered where it used to be dropped.
+2. `waitForMessageToolFinalReply` gained a freshness requirement on
+   `messageToolFinalReplyAt` bounded by a 3 s `MESSAGE_TOOL_FINAL_GRACE_WINDOW_MS`.
+   0.1.43 raced it against the run result with no deadline.
+
+**Fix.** `stripEchoedAgentPrompt()` in `agent-prompt.ts` removes any `<system>`
+block carrying one of our own prompt markers, tolerates a truncated block with no
+closing tag, and drops bare `<user>` tag lines; `settleFromPaneResult` suppresses
+the message entirely when nothing survives. Blocks **without** a marker are left
+alone so a genuine reply that mentions `<system>` still delivers. 6 tests in
+`test/agent-prompt.test.ts`.
+
+**Upstream-worthy:** yes — no existing issue on `longbkit/clisbot` (searched
+2026-08-01). Note this patch is deliberately a *containment* fix: it makes the
+leak impossible without changing when the pane fallback fires. A PR should
+probably also argue the root cause — either restore the unconditional bail for
+handed-off message-tool routes, or widen/remove the 3 s grace — but that changes
+delivery behaviour upstream widened on purpose, so it belongs in the PR
+discussion rather than in a fix we ship to ourselves unilaterally.
+
+---
+
 ## Carried from before
 
 - `feat/telegram-voice-audio-attachments` — voice/audio downloads. **Upstream now
