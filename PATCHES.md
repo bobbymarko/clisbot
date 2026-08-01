@@ -143,6 +143,15 @@ into it. Two 0.1.54 changes push far more runs down that path:
    `messageToolFinalReplyAt` bounded by a 3 s `MESSAGE_TOOL_FINAL_GRACE_WINDOW_MS`.
    0.1.43 raced it against the run result with no deadline.
 
+**The guard cannot fire under Claude Code — lead with this in the PR.** `body` is
+`snapshot.trim()` (`rendering.ts:28`), i.e. the *entire tmux pane*, so
+`nextState.body.trim() === ""` requires a **completely blank pane**. Measured on a
+live idle Claude Code session: **1274 non-whitespace characters** — the TUI keeps an
+input box, status line and permission-mode line on screen permanently. The condition
+is written for a CLI that exits or clears the screen on completion; under Claude Code
+it is never true, so the skip never runs and every message-tool run that misses the
+3 s window dumps the pane. Consistent with upstream being developed Codex-first.
+
 **Fix.** `stripEchoedAgentPrompt()` in `agent-prompt.ts` removes any `<system>`
 block carrying one of our own prompt markers, tolerates a truncated block with no
 closing tag, and drops bare `<user>` tag lines; `settleFromPaneResult` suppresses
