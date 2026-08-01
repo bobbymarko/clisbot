@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { buildAgentPromptText, buildSteeringPromptText } from "../src/channels/message/agent-prompt.ts";
+import {
+  buildAgentPromptText,
+  buildSteeringPromptText,
+  stripEchoedAgentPrompt,
+} from "../src/channels/message/agent-prompt.ts";
 import { setRenderedCliName } from "../src/control/commands/cli-name.ts";
 
 describe("agent prompt envelope", () => {
@@ -548,5 +552,71 @@ follow up on the last point
       expect(result.stderr).toBe("");
       expect(result.stdout).toBe(messageBody);
     }
+  });
+});
+
+describe("stripEchoedAgentPrompt", () => {
+  const leaked = [
+    "<system>",
+    "Message context:",
+    "- sender: Bob Bertoni [telegram:8387881738, @bobertoni]",
+    "",
+    "You are operating inside clisbot.",
+    "To send a user-visible progress update or final reply, use the following CLI command:",
+    "clisbot message send \\",
+    "  --channel telegram \\",
+    "</system>",
+    "",
+    "<user>",
+    "Yes please",
+    "</user>",
+  ].join("\n");
+
+  test("removes an echoed prompt block from a pane snapshot", () => {
+    const out = stripEchoedAgentPrompt(leaked);
+    expect(out).not.toContain("You are operating inside clisbot.");
+    expect(out).not.toContain("<system>");
+    expect(out).not.toContain("clisbot message send");
+    // the user's own words survive, without the wrapper tags
+    expect(out).toBe("Yes please");
+  });
+
+  test("strips a truncated block that never closes", () => {
+    const truncated = leaked.slice(0, leaked.indexOf("</system>"));
+    const out = stripEchoedAgentPrompt(truncated);
+    expect(out).not.toContain("You are operating inside clisbot.");
+    expect(out.trim()).toBe("");
+  });
+
+  test("strips a steering prompt too", () => {
+    const steer = [
+      "<system>",
+      "A new user message arrived while you were still working.",
+      "Adjust your current work if needed and continue.",
+      "</system>",
+    ].join("\n");
+    expect(stripEchoedAgentPrompt(steer).trim()).toBe("");
+  });
+
+  test("keeps real agent output that merely mentions system tags", () => {
+    const real = "Here is the config:\n<system>\nfoo: bar\n</system>\nThat's it.";
+    expect(stripEchoedAgentPrompt(real)).toBe(real);
+  });
+
+  test("leaves ordinary replies untouched", () => {
+    expect(stripEchoedAgentPrompt("All set - deployed.")).toBe("All set - deployed.");
+    expect(stripEchoedAgentPrompt("")).toBe("");
+  });
+
+  test("strips the real generated prompt end to end", () => {
+    const prompt = buildAgentPromptText({
+      text: "hello there",
+      identity: { platform: "telegram", channel: "telegram", conversationId: "8387881738" } as never,
+      config: { enabled: true, maxProgressMessages: 3, requireFinalResponse: true },
+      responseMode: "message-tool",
+    });
+    const out = stripEchoedAgentPrompt(prompt);
+    expect(out).not.toContain("You are operating inside clisbot.");
+    expect(out).toBe("hello there");
   });
 });

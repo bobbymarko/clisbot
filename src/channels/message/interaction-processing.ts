@@ -58,7 +58,7 @@ import {
   type SurfaceNotificationMode,
   type SurfaceNotificationsConfig,
 } from "../config/surface-notifications.ts";
-import { buildSteeringPromptText } from "./agent-prompt.ts";
+import { buildSteeringPromptText, stripEchoedAgentPrompt } from "./agent-prompt.ts";
 import type { RunObserverMode, RunUpdate } from "../../agents/session/run-observation.ts";
 import {
   getConversationResponseMode,
@@ -898,7 +898,17 @@ async function executePromptDelivery<TChunk>(params: {
         responsePolicy: params.route.response,
       });
 
-    const postedNew = await renderResponseText(settlementText);
+    // Last line of defence: this text can be a raw pane snapshot, and the pane
+    // still shows the prompt we typed into it.
+    const safeSettlementText = stripEchoedAgentPrompt(settlementText);
+    if (safeSettlementText.trim() === "") {
+      if (finalResult.status === "completed") {
+        await recordVisibleReply("final", "channel");
+      }
+      return;
+    }
+
+    const postedNew = await renderResponseText(safeSettlementText);
     if (postedNew) {
       await recordVisibleReply(
         finalResult.status === "completed" ? "final" : "reply",

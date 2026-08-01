@@ -47,6 +47,69 @@ Adjust your current work if needed and continue.
 {{message_body}}
 </user>`;
 
+/**
+ * Signatures that identify a `<system>` block as OUR injected prompt rather than
+ * anything the agent legitimately wrote. Keep these in sync with the templates above.
+ */
+const ECHOED_PROMPT_MARKERS = [
+  "You are operating inside clisbot.",
+  "A new user message arrived while you were still working.",
+];
+
+/**
+ * Remove an echoed clisbot prompt from text that came off a tmux pane.
+ *
+ * The pane still shows the prompt we just typed into it. When a run settles from
+ * the pane snapshot instead of from a message-tool reply, that snapshot is
+ * delivered to the user verbatim -- which is how the raw `<system>` block ends up
+ * posted into a chat without the agent ever sending it.
+ *
+ * Only strips blocks carrying one of the markers above, so an agent that happens
+ * to write `<system>` in a real reply keeps it.
+ */
+export function stripEchoedAgentPrompt(text: string): string {
+  if (!text || !ECHOED_PROMPT_MARKERS.some((marker) => text.includes(marker))) {
+    return text;
+  }
+
+  let out = "";
+  let rest = text;
+
+  while (true) {
+    const open = rest.indexOf("<system>");
+    if (open === -1) {
+      out += rest;
+      break;
+    }
+
+    const close = rest.indexOf("</system>", open);
+    // A truncated capture can hold the opening tag with no closing one. Treat the
+    // remainder as prompt: leaking half the block is no better than leaking all of it.
+    const blockEnd = close === -1 ? rest.length : close + "</system>".length;
+    const block = rest.slice(open, blockEnd);
+
+    if (!ECHOED_PROMPT_MARKERS.some((marker) => block.includes(marker))) {
+      out += rest.slice(0, blockEnd);
+      rest = rest.slice(blockEnd);
+      continue;
+    }
+
+    out += rest.slice(0, open);
+    rest = rest.slice(blockEnd);
+  }
+
+  // The prompt wraps the user's own message in <user></user>. Drop the bare tag
+  // lines so the echo doesn't read as markup, but keep the text between them.
+  return out
+    .split("\n")
+    .filter((line) => {
+      const t = line.trim();
+      return t !== "<user>" && t !== "</user>";
+    })
+    .join("\n")
+    .trim();
+}
+
 export const DELIVERY_INTRO =
   "To send a user-visible {{progress_phrase}}final reply, use the following CLI command:";
 
