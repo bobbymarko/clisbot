@@ -57,6 +57,18 @@ const ECHOED_PROMPT_MARKERS = [
 ];
 
 /**
+ * True when text still carries a signature of our own injected prompt.
+ *
+ * Tag-independent on purpose: interaction renderers strip `<...>` tags out of a
+ * completed run's body, so by the time rendered text is inspected the `<system>`
+ * wrapper is gone but the prompt body is not. Use this as the assertion after
+ * stripping -- never as the stripper itself.
+ */
+export function containsEchoedAgentPrompt(text: string): boolean {
+  return Boolean(text) && ECHOED_PROMPT_MARKERS.some((marker) => text.includes(marker));
+}
+
+/**
  * Remove an echoed clisbot prompt from text that came off a tmux pane.
  *
  * The pane still shows the prompt we just typed into it. When a run settles from
@@ -66,6 +78,11 @@ const ECHOED_PROMPT_MARKERS = [
  *
  * Only strips blocks carrying one of the markers above, so an agent that happens
  * to write `<system>` in a real reply keeps it.
+ *
+ * MUST run on the RAW pane snapshot, before any interaction renderer touches it.
+ * Renderers drop angle-bracket tags, and this function keys on `<system>`: run it
+ * after rendering and it silently matches nothing while the prompt sails through.
+ * That ordering mistake is the 2026-08-01 leak.
  */
 export function stripEchoedAgentPrompt(text: string): string {
   if (!text || !ECHOED_PROMPT_MARKERS.some((marker) => text.includes(marker))) {

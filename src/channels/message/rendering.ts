@@ -8,6 +8,7 @@ import {
   renderTranscriptCommandForRenderer,
 } from "../../runners/transcript/index.ts";
 import { resolveChannelInteractionRenderer } from "../catalog/registry.ts";
+import { stripEchoedAgentPrompt } from "./agent-prompt.ts";
 
 export type ChannelRenderedMessageState = {
   text: string;
@@ -25,8 +26,12 @@ export function buildRenderedMessageState(params: {
   previousState?: ChannelRenderedMessageState;
   responsePolicy?: "all" | "final";
 }): ChannelRenderedMessageState {
+  // The snapshot is the tmux pane, and the pane still shows the prompt clisbot
+  // typed into it. Strip that here -- this is the one place every pane-derived
+  // body passes through, and it is the last point at which the `<system>` tags
+  // the stripper keys on still exist. The renderer below deletes them.
   const body =
-    params.snapshot.trim() ||
+    stripEchoedAgentPrompt(params.snapshot).trim() ||
     (params.status === "completed" || params.status === "timeout" || params.status === "detached"
       ? (params.previousState?.body ?? "")
       : "");

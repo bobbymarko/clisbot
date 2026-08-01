@@ -58,7 +58,11 @@ import {
   type SurfaceNotificationMode,
   type SurfaceNotificationsConfig,
 } from "../config/surface-notifications.ts";
-import { buildSteeringPromptText, stripEchoedAgentPrompt } from "./agent-prompt.ts";
+import {
+  buildSteeringPromptText,
+  containsEchoedAgentPrompt,
+  stripEchoedAgentPrompt,
+} from "./agent-prompt.ts";
 import type { RunObserverMode, RunUpdate } from "../../agents/session/run-observation.ts";
 import {
   getConversationResponseMode,
@@ -879,6 +883,30 @@ async function executePromptDelivery<TChunk>(params: {
     });
   }
 
+  /**
+   * Post-render backstop. `buildRenderedMessageState` already strips the echoed
+   * prompt out of the raw pane; a marker surviving into rendered text means the
+   * text reached here by some path that skipped that choke point. Drop it, and say
+   * so loudly -- clisbot keeps no record of outbound message bodies, so an
+   * unlogged leak is only ever reported by the human who received it.
+   */
+  function isEchoedPromptLeak(text: string, source: string) {
+    if (!containsEchoedAgentPrompt(text)) {
+      return false;
+    }
+
+    console.error(
+      `suppressed echoed clisbot prompt in ${source}`,
+      {
+        sessionKey: params.sessionTarget.sessionKey,
+        agentId: params.route.agentId,
+        chars: text.length,
+        head: text.slice(0, 200),
+      },
+    );
+    return true;
+  }
+
   async function settleFromPaneResult(
     finalResult: RunUpdate,
     nextState: ChannelRenderedMessageState,
@@ -901,7 +929,10 @@ async function executePromptDelivery<TChunk>(params: {
     // Last line of defence: this text can be a raw pane snapshot, and the pane
     // still shows the prompt we typed into it.
     const safeSettlementText = stripEchoedAgentPrompt(settlementText);
-    if (safeSettlementText.trim() === "") {
+    if (
+      safeSettlementText.trim() === "" ||
+      isEchoedPromptLeak(safeSettlementText, "pane settlement")
+    ) {
       if (finalResult.status === "completed") {
         await recordVisibleReply("final", "channel");
       }
@@ -1007,6 +1038,9 @@ async function executePromptDelivery<TChunk>(params: {
               responsePolicy: params.route.response,
             });
             if (renderedState?.text === nextState.text) {
+              return;
+            }
+            if (isEchoedPromptLeak(nextState.text, "streaming preview")) {
               return;
             }
 

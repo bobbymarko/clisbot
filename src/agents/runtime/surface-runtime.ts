@@ -1,4 +1,7 @@
-import { buildAgentPromptText } from "../../channels/message/agent-prompt.ts";
+import {
+  buildAgentPromptText,
+  stripEchoedAgentPrompt,
+} from "../../channels/message/agent-prompt.ts";
 import type { ChannelId } from "../../channels/integration/channel-surface-contract.ts";
 import {
   resolveChannelIdentityBotId,
@@ -146,9 +149,11 @@ export class SurfaceRuntime {
 
     const identity = this.buildQueueChannelIdentity(item);
     const promptSummary = item.promptSummary.trim();
+    // update.snapshot is the raw tmux pane, which still shows our injected prompt.
+    const snapshot = stripEchoedAgentPrompt(update.snapshot);
     const content = promptSummary
-      ? `Prompt: ${promptSummary}\n\n${update.snapshot}`
-      : update.snapshot;
+      ? `Prompt: ${promptSummary}\n\n${snapshot}`
+      : snapshot;
     const text = renderPlatformInteraction({
       platform: identity.platform,
       status: update.status,
