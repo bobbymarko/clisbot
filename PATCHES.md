@@ -166,7 +166,27 @@ prompts), no commits on `origin/main` touching `interaction-processing.ts` or
 hit: upstream's own file. We would be first, so the PR has to carry its own
 evidence — lead with the 1274-char pane measurement.
 
-**Shape the PR like upstream's own per-CLI idiom, not like this patch.**
+**⚠️ A per-CLI template field does NOT fix this leak — corrected 2026-08-01.**
+`captureLines` defaults to **160**, so the snapshot is 160 lines of *scrollback*,
+not the visible screen. A live pane captured that way holds 4 prompt-echo markers:
+the echoed prompt is genuine scrollback **content**, not TUI chrome. Any
+"is this pane effectively empty" predicate sees 160 lines of real content and
+delivers it. The idiom note below is about how upstream expresses per-CLI pane
+knowledge — useful, but aimed at a different problem than this bug.
+
+**The root, and what the PR should argue.** On a `responseMode: "message-tool"`
+route the contract is that the agent replies via the tool, so a scrollback dump is
+never a correct user-facing reply — clean or not. With no recorded reply the right
+behaviour is to send nothing, or a short "run finished without a reply" note.
+0.1.43 did that in one line; 0.1.54 broke it twice over — narrowed the bail to
+empty panes **and** capped reply detection at 3 s where 0.1.43 waited for the run.
+Either alone would have been survivable.
+
+**Before writing the PR**, determine which trigger produced the observed leak:
+the agent never called the tool, or it called it and the record landed after the
+3 s window. Different fixes; don't guess.
+
+**Upstream's per-CLI idiom (for reference, not for this fix).**
 `DEFAULT_AGENT_TOOL_TEMPLATES` (`config/runtime/agent-tool-presets.ts`) is where
 per-CLI differences live, as *data* rather than scattered `if (tool === "claude")`.
 It already carries the exact analogue: `startupReadyPattern`, a per-CLI regex
