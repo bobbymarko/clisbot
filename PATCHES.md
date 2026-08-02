@@ -157,11 +157,51 @@ content. Everything else is a contributing factor, not the cause:
 
 **Fix.** `stripEchoedAgentPrompt()` in `agent-prompt.ts` removes any `<system>` block
 carrying one of our own prompt markers, tolerates a truncated block with no closing
-tag, and drops bare `<user>` tag lines; `settleFromPaneResult` suppresses the message
-entirely when nothing survives. Blocks **without** a marker are left alone so a genuine
-reply mentioning `<system>` still delivers. 6 tests in `test/agent-prompt.test.ts`.
-Stripping text you injected yourself before reading it back is correctness, not a
-band-aid — this is the principled fix, not containment.
+tag, and drops bare `<user>` tag lines. Blocks **without** a marker are left alone so a
+genuine reply mentioning `<system>` still delivers. 6 tests in
+`test/agent-prompt.test.ts`. Stripping text you injected yourself before reading it back
+is correctness, not a band-aid — this is the principled fix, not containment.
+
+### 2026-08-01, second leak: **the ordering was wrong** (`82a6c19`)
+
+The above shipped, and the prompt leaked again the same evening. The stripper was
+correct; **where it ran was not.**
+
+`settleFromPaneResult` called it on *rendered* text. The interaction renderer, for a
+`completed`-status body, **deletes angle-bracket tags while keeping the text inside
+them.** So by the time the stripper saw the text, `<system>` was already gone — it
+keyed on a tag that no longer existed, matched nothing, and passed the entire prompt
+through. Reproduced deterministically: `status=running` → tag present → stripped clean;
+`status=completed` → tag gone → **leaks**. That is exactly why Bob's screenshot began
+mid-prompt at "You are operating inside clisbot." with no tag and no "Message context:"
+header above it.
+
+**Corrected fix, three parts:**
+1. **Strip before rendering.** The call moved into `buildRenderedMessageState`
+   (`rendering.ts`) — the one choke point every pane-derived body passes through, and
+   the last point at which the tags still exist. All 3 call sites in
+   `interaction-processing.ts` inherit it.
+2. **Tag-independent backstop.** `containsEchoedAgentPrompt()` asserts on the prompt's
+   *wording* (`ECHOED_PROMPT_MARKERS`), never its tags, so it still fires on
+   renderer-mangled text. Use it as the assertion after stripping — **never** as the
+   stripper itself.
+3. **Two more delivery paths, previously unguarded.** The streaming `onUpdate` preview
+   had no sanitization at all, and `SurfaceRuntime.notifyManagedQueueSettlement` posted
+   `update.snapshot` raw. Both now covered.
+
+**Also added: logging.** clisbot records **no outbound message bodies** —
+`~/.clisbot/state/` has no message store and `clisbot.log` carries only errors and
+lifecycle. All three leaks were discovered solely because the human saw them. Any
+suppressed leak now `console.error`s with `sessionKey`, `agentId`, `chars`, and a
+200-char head.
+
+**Lesson, generally:** sanitize at the boundary where you *inject*, not where you
+*deliver*. Anything between the two is free to reshape the text out from under your
+matcher.
+
+Regression coverage: `test/channel-rendering.test.ts` drives `buildRenderedMessageState`
+across all four render statuses (`running`/`completed`/`timeout`/`detached`) — a
+single-status test would have passed against the broken build.
 
 **Upstream-worthy:** yes. Nothing addresses it as of 2026-08-01 — 4 open PRs (none on
 settlement), 2 issues total (#14 is Claude-adjacent but about permission prompts), no
