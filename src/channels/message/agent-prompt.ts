@@ -84,6 +84,85 @@ export function containsEchoedAgentPrompt(text: string): boolean {
  * after rendering and it silently matches nothing while the prompt sails through.
  * That ordering mistake is the 2026-08-01 leak.
  */
+/**
+ * Remove the prompt we ourselves injected, matched by CONTENT rather than by tags.
+ *
+ * Why this exists (2026-08-07): `stripEchoedAgentPrompt` below is purely tag-based. It
+ * scans for `<system>`...`</system>`. But interaction renderers delete angle-bracket tags
+ * from a completed run's body, so by the time `settleFromPaneResult` inspects the text the
+ * tags are gone and the stripper is a no-op. `containsEchoedAgentPrompt` then correctly
+ * fires -- and the caller discards the WHOLE body, including any real answer the agent
+ * wrote after the echo. 32 suppressions in `clisbot.log` (default 21, nova 9, cadence 1,
+ * four-threads 1) ranged 1937-2810 chars against a ~1900-char prompt, so the larger ones
+ * took several hundred characters of genuine reply down with them.
+ *
+ * This is deliberately NOT the marker-based stripper PATCHES.md warns against. It does not
+ * guess at what looks prompt-shaped; it removes a span that matches the literal text we
+ * sent, and is a no-op when there is no match. Worst case it changes nothing and the
+ * existing tag stripper plus backstop behave exactly as before.
+ *
+ * Whitespace is normalised on both sides before matching because a tmux pane re-wraps to
+ * terminal width, so the echo is never byte-identical to what we typed.
+ */
+export function stripInjectedPromptText(text: string, promptText: string): string {
+  if (!text || !promptText) {
+    return text;
+  }
+
+  // Compare with tags removed: the renderer may have already deleted them from `text`,
+  // and `promptText` still has them. Also drop the backslash line-continuations the reply
+  // command uses, which panes are free to re-wrap around.
+  const canonical = (s: string) => s.replace(/<\/?[a-z][^>]*>/gi, " ").replace(/\\\s*/g, " ");
+
+  // Normalised form + a map from each normalised char back to its index in the original.
+  const build = (s: string) => {
+    let out = "";
+    const map: number[] = [];
+    let pendingSpace = false;
+    for (let i = 0; i < s.length; i += 1) {
+      const ch = s[i]!;
+      if (/\s/.test(ch)) {
+        pendingSpace = out.length > 0;
+        continue;
+      }
+      if (pendingSpace) {
+        out += " ";
+        map.push(i);
+        pendingSpace = false;
+      }
+      out += ch;
+      map.push(i);
+    }
+    return { out, map };
+  };
+
+  // Match the <system> envelope only, not the whole prompt. The prompt also wraps the
+  // user's own message in <user>...</user>, and that half may be absent, truncated or
+  // separately rendered in the pane -- including it in the needle made the match fail
+  // outright, which a test caught before this shipped. The system block is the part we
+  // authored and the part that must never be echoed back.
+  const systemBlocks = [...promptText.matchAll(/<system>([\s\S]*?)<\/system>/gi)]
+    .map((m) => m[1] ?? "")
+    .filter((b) => ECHOED_PROMPT_MARKERS.some((marker) => b.includes(marker)));
+  const injected = systemBlocks.length > 0 ? systemBlocks.join("\n") : promptText;
+
+  const haystack = build(canonical(text));
+  const needle = build(canonical(injected));
+  if (needle.out.length < 40) {
+    // Too short to match safely -- a tiny prompt could appear inside a genuine reply.
+    return text;
+  }
+
+  const at = haystack.out.indexOf(needle.out);
+  if (at === -1) {
+    return text;
+  }
+
+  const startOrig = haystack.map[at]!;
+  const endOrig = haystack.map[at + needle.out.length - 1]! + 1;
+  return (text.slice(0, startOrig) + text.slice(endOrig)).trim();
+}
+
 export function stripEchoedAgentPrompt(text: string): string {
   if (!text || !ECHOED_PROMPT_MARKERS.some((marker) => text.includes(marker))) {
     return text;

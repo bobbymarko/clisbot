@@ -62,6 +62,7 @@ import {
   buildSteeringPromptText,
   containsEchoedAgentPrompt,
   stripEchoedAgentPrompt,
+  stripInjectedPromptText,
 } from "./agent-prompt.ts";
 import type { RunObserverMode, RunUpdate } from "../../agents/session/run-observation.ts";
 import {
@@ -644,6 +645,9 @@ async function executePromptDelivery<TChunk>(params: {
   let draftPreviewStartedAt: number | undefined;
   let promptExecutionStartedAt: number | undefined;
   let messageToolPreviewHandedOff = false;
+  // The prompt envelope exactly as injected, for stripping it back out of a pane snapshot.
+  // Filled by the wrapper at the enqueue call below when promptText is a builder thunk.
+  let injectedPromptText = typeof params.promptText === "string" ? params.promptText : "";
   let messageToolPreviewMonitorStarted = false;
   let stopMessageToolPreviewMonitor = false;
   let messageToolPreviewMonitor: Promise<void> | undefined;
@@ -928,11 +932,35 @@ async function executePromptDelivery<TChunk>(params: {
 
     // Last line of defence: this text can be a raw pane snapshot, and the pane
     // still shows the prompt we typed into it.
-    const safeSettlementText = stripEchoedAgentPrompt(settlementText);
+    //
+    // Two passes, and the order matters. `stripEchoedAgentPrompt` is tag-based, so it is a
+    // no-op once a renderer has deleted the angle brackets -- which is exactly what happens
+    // to a `completed` body on the `renderPlatformInteraction` branch above. When that
+    // happened the marker backstop fired and the WHOLE body was dropped, taking any genuine
+    // reply with it: 32 suppressions in clisbot.log, sized 1937-2810 chars against a
+    // ~1900-char prompt. `stripInjectedPromptText` closes that by matching the text we
+    // actually sent, whitespace-normalised so pane re-wrapping does not defeat it, and is a
+    // strict no-op when there is no match.
+    const safeSettlementText = stripEchoedAgentPrompt(
+      stripInjectedPromptText(settlementText, injectedPromptText),
+    );
     if (
       safeSettlementText.trim() === "" ||
       isEchoedPromptLeak(safeSettlementText, "pane settlement")
     ) {
+      // The user received NOTHING on this path. Say so — the leak branch logs, but the
+      // empty branch was entirely silent, and both go on to record a delivered final
+      // reply below. That stamp is what every consumer reads (queue routing, and the
+      // automations board's loop_delivered check), so a suppressed turn has been
+      // indistinguishable from an answered one. Keep the stamp for routing correctness,
+      // but stop it being invisible.
+      console.error("pane settlement produced nothing deliverable", {
+        sessionKey: params.sessionTarget.sessionKey,
+        agentId: params.route.agentId,
+        status: finalResult.status,
+        rawChars: settlementText.length,
+        afterStripChars: safeSettlementText.length,
+      });
       if (finalResult.status === "completed") {
         await recordVisibleReply("final", "channel");
       }
@@ -968,9 +996,26 @@ async function executePromptDelivery<TChunk>(params: {
   }
 
   try {
+    // Capture the prompt envelope AS IT IS BUILT, rather than rebuilding it later.
+    //
+    // `promptText` may be a thunk, and that thunk is a *builder* with a fresh timestamp and
+    // message context each call — `expect(buildCount).toBe(1)` in
+    // interaction-processing-message-tool-streaming.suite.ts pins it to exactly one
+    // invocation. An earlier draft of this called it a second time during settlement: the
+    // test caught it, and it would also have been wrong in production, matching the pane
+    // echo against an envelope that was never sent. Wrapping keeps the single invocation
+    // and hands us the exact text.
+    const promptTextForEnqueue =
+      typeof params.promptText === "function"
+        ? () => {
+          injectedPromptText = (params.promptText as () => string)();
+          return injectedPromptText;
+        }
+        : params.promptText;
+
     const queued = params.agentService.enqueuePrompt(
       params.sessionTarget,
-      params.promptText,
+      promptTextForEnqueue,
       {
         observerId: params.observerId,
         timingContext: params.timingContext,

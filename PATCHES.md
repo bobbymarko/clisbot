@@ -227,9 +227,76 @@ session IDs. Recent upstream commits before the release are likewise codex-focus
 ("classify resume and codex state-db startup failures", "track codex runner stability
 strategy").
 
-**Open, and not a clisbot bug:** Nova ignored an explicit instruction to reply via the
-tool. If that is frequent across bots, the fallback is carrying more weight than
-anyone intended. Worth measuring.
+**~~Open, and not a clisbot bug~~ — MEASURED 2026-08-07, and half of it *is* a clisbot bug.**
+Nova ignored an explicit instruction to reply via the tool. Measured across all four agents'
+transcripts since Jul 24: reply rates **nova 89% (86 msgs), default 93% (184), cadence 95%,
+four-threads 100%** — so yes, the fallback carries real weight, and the agent with the biggest
+CLAUDE.md (1050 lines, 2.8x the next) leans on it hardest.
+
+But `clisbot.log` also holds **32 `suppressed echoed clisbot prompt in pane settlement`
+events** (default 21, nova 9, cadence 1, four-threads 1) sized **1937–2810 chars against a
+~1900-char prompt** — several hundred characters of *something else* went over the side with
+each of the larger ones. One lands within 60 s of a reply Bob independently reported never
+receiving (2026-08-03 00:15 → suppression 00:16).
+
+---
+
+## `fix/pane-settlement-discards-real-replies` — the backstop was throwing away the answer
+
+**Symptom.** A turn ends, the user gets silence, and clisbot records a final reply anyway.
+
+**Cause.** `settleFromPaneResult` sanitises in one pass with `stripEchoedAgentPrompt`, which
+is **purely tag-based** — it scans for `<system>`…`</system>`. On the
+`renderPlatformInteraction` branch the body has *already been rendered*, and renderers delete
+angle-bracket tags. So the stripper matches nothing and returns the text unchanged; the
+tag-independent backstop then correctly fires and the caller drops **the entire body** —
+including any genuine reply the agent wrote after the echo. This is the 2026-08-01 ordering
+bug surviving on a second path: fix `82a6c19` moved stripping before rendering inside
+`buildRenderedMessageState`, but this call site renders *again* from `nextState.body` and
+strips after.
+
+**Fix.** `stripInjectedPromptText(text, promptText)` in `agent-prompt.ts`, run as a first pass
+before the existing stripper. It removes the span matching **the literal `<system>` envelope we
+actually injected**, whitespace-normalised on both sides so tmux re-wrapping cannot defeat it,
+and is a **strict no-op** when there is no match — worst case, behaviour is exactly as before.
+It matches the system block only, never the `<user>` half, which is the user's own words and
+may be absent or separately rendered.
+
+⚠️ **This is NOT the marker-based stripper the entry above forbids.** It does not guess at what
+looks prompt-shaped; it removes text we can prove we sent. That distinction is the whole design.
+
+**Two mistakes caught by tests before shipping — both would have been silent in production:**
+1. First draft used the whole `promptText` as the needle. The `<user>` block is not in the pane
+   echo, so the match failed outright and the fix did nothing. A positive test caught it.
+2. Second draft *called* `params.promptText` during settlement. It is a `string | (() => string)`
+   and the thunk is a **builder** — `expect(buildCount).toBe(1)` in
+   `interaction-processing-message-tool-streaming.suite.ts` pins it to one invocation. Calling it
+   again rebuilds the envelope with a fresh timestamp, so the stripper would have been matching
+   against text that was never sent. Now the enqueue call passes a **wrapper** that records the
+   built string, preserving the single invocation.
+
+   **A stashed control run is what proved this was mine**: baseline 141 pass / 1 fail on
+   `test/interaction-processing` + `test/tmux-runner-latency`, versus 140 / 2 with the change.
+   Without the control I would have filed it under "the suite is flaky under load", which the
+   four genuinely timing-sensitive failures make very easy to believe.
+
+**Also: the silent branch now logs.** When settlement yields nothing deliverable, the empty case
+was *completely* silent (only the leak case logged) and **both go on to call
+`recordVisibleReply("final")`**. That stamp is what queue routing and the automations board's
+`loop_delivered` check read, so a suppressed turn has been indistinguishable from an answered
+one — which is exactly why 32 of them accumulated unnoticed. The stamp is kept (removing it
+risks the run being treated as still-blocking; not verified, so not touched) but it is no longer
+invisible.
+
+**Tests:** `test/pane-settlement-loss.test.ts` — 9 cases. Three reproduce the loss; six pin the
+fix, including the ones where it must NOT fire (no echo, empty/tiny prompt, a reply that merely
+*quotes* the prompt wording, a truncated echo).
+
+**Still open:** the stamp itself. A suppressed settlement is not a delivered reply, and until
+that is separated, `loop_delivered` can report green on silence.
+
+**Upstream-worthy:** yes — same framing as the entry above: keep the fallback, exclude the
+injected prompt from what it delivers, and now *stop it taking the real reply with it*.
 
 ---
 
