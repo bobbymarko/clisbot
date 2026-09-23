@@ -20,9 +20,10 @@ function nextChunkId() {
 export async function postWebText(
   ws: WebSocket,
   text: string,
+  contextId?: string,
 ): Promise<WebChunk[]> {
   const chunk: WebChunk = { id: nextChunkId(), text };
-  ws.send(JSON.stringify({ type: "chunk", id: chunk.id, text }));
+  ws.send(JSON.stringify({ type: "chunk", id: chunk.id, text, contextId }));
   return [chunk];
 }
 
@@ -30,19 +31,20 @@ export async function reconcileWebText(
   ws: WebSocket,
   chunks: WebChunk[],
   text: string,
+  contextId?: string,
 ): Promise<WebChunk[]> {
   if (chunks.length === 0) {
-    return postWebText(ws, text);
+    return postWebText(ws, text, contextId);
   }
   const firstId = chunks[0].id;
-  ws.send(JSON.stringify({ type: "update", id: firstId, text }));
+  ws.send(JSON.stringify({ type: "update", id: firstId, text, contextId }));
   return [{ id: firstId, text }];
 }
 
-export function sendWebDone(ws: WebSocket) {
-  ws.send(JSON.stringify({ type: "done" }));
+export function sendWebDone(ws: WebSocket, contextId?: string) {
+  ws.send(JSON.stringify({ type: "done", contextId }));
 }
 
-export function sendWebError(ws: WebSocket, message: string) {
-  ws.send(JSON.stringify({ type: "error", message }));
+export function sendWebError(ws: WebSocket, message: string, contextId?: string) {
+  ws.send(JSON.stringify({ type: "error", message, contextId }));
 }

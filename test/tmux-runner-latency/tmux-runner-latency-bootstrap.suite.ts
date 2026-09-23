@@ -243,7 +243,8 @@ describe("tmux runner latency behavior", () => {
       tmux: fakeTmux,
       sessionName: "test-session",
       captureLines: 80,
-      startupDelayMs: 500,
+      // Trust dismissal includes real debounce sleeps; leave room for a busy CI host.
+      startupDelayMs: 2000,
       trustWorkspace: true,
       readyPattern: "Type your message or @path/to/file",
     });

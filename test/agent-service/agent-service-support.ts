@@ -414,7 +414,9 @@ export class FakeTmuxClient {
       session.waitForRecoveryContinue = false;
       session.snapshot = `${session.snapshot}\nCONTINUE ${session.sessionId}`;
     } else if (session.pendingInput) {
-      session.snapshot = `${session.snapshot}\nECHO ${session.pendingInput}`;
+      // A completed fake response leaves an empty composer, like the real runner.
+      // Otherwise the last line of a multiline echo looks like unsubmitted input.
+      session.snapshot = `${session.snapshot}\nECHO ${session.pendingInput}\n›`;
     }
     session.pendingInput = "";
     session.cursorX = 0;

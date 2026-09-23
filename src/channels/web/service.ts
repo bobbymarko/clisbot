@@ -262,9 +262,9 @@ export class WebRuntimeService implements ChannelRuntimeService {
               accumulatedText = text;
               const { text: cleanText } = extractChannelEvents(text);
               if (activeChunks.length === 0) {
-                activeChunks = await postWebText(ws, cleanText);
+                activeChunks = await postWebText(ws, cleanText, msg.contextId);
               } else {
-                activeChunks = await reconcileWebText(ws, activeChunks, cleanText);
+                activeChunks = await reconcileWebText(ws, activeChunks, cleanText, msg.contextId);
               }
               return activeChunks;
             },
@@ -272,9 +272,9 @@ export class WebRuntimeService implements ChannelRuntimeService {
               accumulatedText = text;
               const { text: cleanText } = extractChannelEvents(text);
               if (activeChunks.length === 0) {
-                activeChunks = await postWebText(ws, cleanText);
+                activeChunks = await postWebText(ws, cleanText, msg.contextId);
               } else {
-                activeChunks = await reconcileWebText(ws, activeChunks, cleanText);
+                activeChunks = await reconcileWebText(ws, activeChunks, cleanText, msg.contextId);
               }
               return activeChunks;
             },
@@ -294,15 +294,15 @@ export class WebRuntimeService implements ChannelRuntimeService {
             if (lastAssistant?.text) {
               const { text: cleanFinal, events: finalEvents } = extractChannelEvents(lastAssistant.text);
               if (activeChunks.length === 0) {
-                activeChunks = await postWebText(ws, cleanFinal);
+                activeChunks = await postWebText(ws, cleanFinal, msg.contextId);
               } else {
-                await reconcileWebText(ws, activeChunks, cleanFinal);
+                await reconcileWebText(ws, activeChunks, cleanFinal, msg.contextId);
               }
               // Use JSONL-derived events (more reliable than tmux-captured accumulatedText)
               for (const event of finalEvents) {
                 sendAnnotation(ws, msg.contextId, event.key, event.value);
               }
-              sendWebDone(ws);
+              sendWebDone(ws, msg.contextId);
               return;
             }
           }
@@ -312,11 +312,11 @@ export class WebRuntimeService implements ChannelRuntimeService {
             sendAnnotation(ws, msg.contextId, event.key, event.value);
           }
 
-          sendWebDone(ws);
+          sendWebDone(ws, msg.contextId);
         } catch (err) {
           console.error("[web-channel] interaction error", err);
-          sendWebError(ws, "Agent error");
-          sendWebDone(ws);
+          sendWebError(ws, "Agent error", msg.contextId);
+          sendWebDone(ws, msg.contextId);
         }
       });
     });

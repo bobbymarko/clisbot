@@ -341,7 +341,7 @@ describe("AgentService loops and queue", () => {
 
     const loadedConfig = await loadConfig(configPath);
     loadedConfig.raw.bots.slack.default.responseMode = "capture-pane";
-    loadedConfig.raw.bots.slack.default.groups["channel:c4"] = {
+    loadedConfig.raw.bots.slack.default.groups["c4"] = {
       enabled: true,
       requireMention: true,
       allowBots: false,
@@ -434,7 +434,7 @@ describe("AgentService loops and queue", () => {
 
     const loadedConfig = await loadConfig(configPath);
     loadedConfig.raw.bots.slack.default.responseMode = "capture-pane";
-    loadedConfig.raw.bots.slack.default.groups["channel:c4"] = {
+    loadedConfig.raw.bots.slack.default.groups["c4"] = {
       enabled: true,
       requireMention: true,
       allowBots: false,
@@ -520,7 +520,7 @@ describe("AgentService loops and queue", () => {
     );
 
     const loadedConfig = await loadConfig(configPath);
-    loadedConfig.raw.bots.slack.default.groups["channel:c4"] = {
+    loadedConfig.raw.bots.slack.default.groups["c4"] = {
       enabled: true,
       requireMention: true,
       allowBots: false,
@@ -631,16 +631,20 @@ describe("AgentService loops and queue", () => {
       }),
     );
 
+    const tmux = new FakeTmuxClient();
     const service = new AgentService(loadedConfig, {
-      tmux: new FakeTmuxClient() as unknown as TmuxClient,
+      tmux: tmux as unknown as TmuxClient,
     });
     const newer = service.enqueuePrompt(target, "new prompt", {
       onUpdate: () => undefined,
     });
 
-    const result = await newer.result;
-    const oldIndex = result.snapshot.indexOf("ECHO old persisted prompt");
-    const newIndex = result.snapshot.indexOf("ECHO new prompt");
+    await newer.result;
+    // Completion snapshots may contain only the latest turn. Assert dispatch order
+    // at the runner boundary instead of depending on retained terminal scrollback.
+    const inputs = tmux.literalInputs.map(input => input.text);
+    const oldIndex = inputs.findIndex(text => text.includes("old persisted prompt"));
+    const newIndex = inputs.findIndex(text => text.includes("new prompt"));
 
     expect(oldIndex).toBeGreaterThanOrEqual(0);
     expect(newIndex).toBeGreaterThan(oldIndex);
