@@ -231,6 +231,7 @@ export const telegramChannelPlugin: ChannelPlugin = {
       pollOptions: command.pollOptions,
       forceDocument: command.forceDocument,
       silent: command.silent,
+      noPreview: command.noPreview,
       inputFormat: command.inputFormat,
       renderMode: command.renderMode,
     };

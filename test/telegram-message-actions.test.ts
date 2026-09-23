@@ -145,3 +145,18 @@ describe("telegram message actions", () => {
     ]);
   });
 });
+
+test("no-preview is carried by both send and edit without affecting default sends", async () => {
+  const bodies: Array<Record<string, unknown>> = [];
+  globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 });
+  }) as typeof fetch;
+  const params = { botToken: "fake", target: "123", message: "https://example.invalid" };
+  await sendTelegramMessage({ ...params, noPreview: true });
+  await editTelegramMessage({ ...params, messageId: "1", noPreview: true });
+  await sendTelegramMessage(params);
+  expect(bodies[0]?.link_preview_options).toEqual({ is_disabled: true });
+  expect(bodies[1]?.link_preview_options).toEqual({ is_disabled: true });
+  expect(bodies[2]?.link_preview_options).toBeUndefined();
+});

@@ -308,3 +308,42 @@ injected prompt from what it delivers, and now *stop it taking the real reply wi
   pre-existing `tsc` errors (`"web"` not in the `"slack" | "telegram"` platform
   union). They predate these patches; `bun build` does not typecheck, so it ships.
   Worth fixing before any upstream PR of the web channel.
+
+---
+
+## `feat/telegram-no-preview` — `--no-preview` for `message send` / `message edit`
+
+Telegram auto-expands the first link in a message into a preview card. clisbot never
+set the API's preview option either way, so **every** message carrying a link got one
+and there was no way to turn it off.
+
+That is not merely cosmetic for auto-posts. The HIDA BAND watcher
+(`~/code/hida_band/band_watch.py`) posts a short summary plus an "Open in BAND" deep
+link; band.us's preview card is taller than the summary, so the thing Bob actually
+needs to read got pushed off-screen by boilerplate. He asked for the bare link on
+2026-08-09.
+
+**Shape** — mirrors the existing `--silent`/`disable_notification` pass-through exactly,
+so there is no new plumbing to reason about:
+
+| file | change |
+|---|---|
+| `src/control/commands/message-cli.ts` | `noPreview: hasFlag(rest, "--no-preview")` + usage line |
+| `src/channels/message/message-command.ts` | `noPreview?: boolean` on `ParsedMessageCommand` |
+| `src/channels/telegram/plugin.ts` | pass `command.noPreview` into the shared params |
+| `src/channels/telegram/message-actions.ts` | `link_preview_options: { is_disabled: true }` on `sendMessage` + `editMessageText` |
+
+**Optional, not required, on the command type.** `ParsedMessageCommand` is built in
+three other places (`queues-cli.ts`, `owner-alerts.ts`, the message CLI itself); a
+required field would have forced edits to all of them for no behavioural gain.
+
+**Uses `link_preview_options`, not `disable_web_page_preview`.** The latter is
+deprecated as of Bot API 7.0. Both still work; the modern one is a nested object,
+which is safe here because `callTelegramApi` takes `Record<string, unknown>` and
+JSON-encodes. Note it would **not** survive `callTelegramMultipartApi`, which
+`String()`s every value — that path is media-with-caption, and captions never render
+a preview anyway, so it is deliberately not wired there.
+
+**Opt-in.** No existing caller changes behaviour; only `band_watch.py` passes it today.
+
+**Upstream-worthy:** yes. Small, additive, matches an existing flag's shape.

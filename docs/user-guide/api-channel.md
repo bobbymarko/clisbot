@@ -695,3 +695,18 @@ Treat result polling as short-lived workflow state, not a permanent archive.
   https://www.chatwoot.com/hc/user-guide/articles/1677693021-how-to-use-webhooks
 - Chatwoot create conversation message API:
   https://developers.chatwoot.com/api-reference/messages/create-new-message
+
+## Create a bot through the CLI
+
+Save a single API bot object (including `ingress`, optional `actions`, and
+routes) as a JSON file, then run:
+
+```sh
+clisbot bots add --channel api --bot kitchen --agent nova --config-file bot-contract.json
+```
+
+This validates the complete configuration before writing it and refuses to
+replace an existing bot. It reconciles provider enablement; the provider's
+existing listener address is preserved. Use the normal bot and route commands
+for later enablement, routing and allowlists. An API sender's allowlist identity
+includes the bot ID: `kitchen:sender-id`, not just `sender-id`.

@@ -21,6 +21,7 @@ export type TelegramMessageActionParams = {
   pollOptions?: string[];
   forceDocument?: boolean;
   silent?: boolean;
+  noPreview?: boolean;
   inputFormat?: MessageInputFormat;
   renderMode?: MessageRenderMode;
 };
@@ -222,6 +223,7 @@ export async function sendTelegramMessage(params: TelegramMessageActionParams) {
     ...(threadId != null && threadId !== 1 ? { message_thread_id: threadId } : {}),
     ...(replyTo != null ? { reply_to_message_id: replyTo } : {}),
     ...(params.silent ? { disable_notification: true } : {}),
+    ...(params.noPreview ? { link_preview_options: { is_disabled: true } } : {}),
   };
   try {
     return await callTelegramApi(params.botToken, "sendMessage", payload);
@@ -269,6 +271,7 @@ export async function editTelegramMessage(params: TelegramMessageActionParams) {
     message_id: Number(params.messageId),
     text: formattedMessage?.text ?? params.message,
     ...(formattedMessage?.parse_mode ? { parse_mode: formattedMessage.parse_mode } : {}),
+    ...(params.noPreview ? { link_preview_options: { is_disabled: true } } : {}),
   };
   try {
     return await callTelegramApi(params.botToken, "editMessageText", payload);

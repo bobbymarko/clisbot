@@ -45,6 +45,7 @@ export type ParsedMessageCommand = {
   pollOptions: string[];
   forceDocument: boolean;
   silent: boolean;
+  noPreview?: boolean;
   progress: boolean;
   final: boolean;
   confirm?: boolean;

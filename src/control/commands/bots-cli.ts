@@ -1,3 +1,4 @@
+import { tryAddApiBot } from "./api-bots-cli.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { readEditableConfig, writeEditableConfig } from "../../config/core/config-file.ts";
 import { parseTimezone } from "../../config/runtime/timezone.ts";
@@ -76,6 +77,7 @@ function renderBotsHelp() {
       `bots add --channel ${contract.channel} [--bot <id>] ${renderChannelBotCredentialUsage(contract.channel)} [--agent <id>] [--cli <codex|claude|gemini> --bot-type <personal|team>] [--persist]`,
     )
   );
+  addExamples.push(renderCliCommand("bots add --channel api --bot <id> --agent <id> --config-file <bot-contract.json>"));
   addExamples.push(renderZaloPersonalAddHelpLine());
   const setCredentialExamples = listChannelBotCredentialContracts().map((contract) =>
     renderCliCommand(
@@ -444,6 +446,7 @@ export async function runBotsCli(
   }
 
   if (action === "add") {
+    if (await tryAddApiBot(args.slice(1))) return;
     if (await tryAddZaloPersonalBot(args.slice(1), resolvedDeps, renderBotsHelp)) {
       return;
     }
