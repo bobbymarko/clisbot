@@ -433,11 +433,17 @@ function renderQueueHelpCommand(identity?: ChannelIdentity) {
 
 function renderConfigurationGuidance(identity?: ChannelIdentity) {
   const cliName = getRenderedCliName();
+  // Loops and queues created without --bot land on the channel's default bot, not the agent the
+  // user is talking to (2026-09-25: a one-off automation made by one agent was pinned to another).
+  // Say the bot id out loud so every agent copies it.
+  const botId = identity ? resolveChannelIdentityBotId(identity) : undefined;
+  const botFlag = botId ? `\`--bot ${botId}\`` : "`--bot <this bot's id>`";
+  const addressing = `Always pass ${botFlag} and \`--sender <the user's principal>\` (omitting --bot pins the item to the channel's default bot); wall-clock loops also need \`--timezone <IANA zone>\` and \`--confirm\`.`;
   return [
     `When the user asks to change ${cliName} configuration, use ${cliName} CLI commands; see ${renderCliCommand("--help", { inline: true })}, ${renderCliCommand("bots --help", { inline: true })}, ${renderCliCommand("routes --help", { inline: true })}, ${renderCliCommand("auth --help", { inline: true })}, or ${renderCliCommand("update --help", { inline: true })} for details.`,
     `For ${cliName} install or update requests, check ${renderCliCommand("update --help", { inline: true })} first and follow it.`,
-    `For schedule/loop/reminder requests, inspect ${renderLoopHelpCommand(identity)} and use the loops CLI.`,
-    `For durable queue requests, inspect ${renderQueueHelpCommand(identity)} and use the queues CLI.`,
+    `For schedule/loop/reminder requests, inspect ${renderLoopHelpCommand(identity)} and use the loops CLI. ${addressing}`,
+    `For durable queue requests, inspect ${renderQueueHelpCommand(identity)} and use the queues CLI, with the same ${botFlag} and --sender flags.`,
   ].join("\n");
 }
 

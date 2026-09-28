@@ -20,6 +20,7 @@ describe("tmux runner latency behavior", () => {
     };
 
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         state = {
           cursorX: 8,
@@ -68,6 +69,7 @@ describe("tmux runner latency behavior", () => {
     };
 
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         pastePolls = 0;
         pasteSettled = false;
@@ -128,6 +130,7 @@ describe("tmux runner latency behavior", () => {
     let snapshot = "";
 
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         sendLiteralCount += 1;
         snapshot = "ping";
@@ -169,6 +172,7 @@ describe("tmux runner latency behavior", () => {
     let capturePaneCount = 0;
     let enterCount = 0;
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         sendLiteralCount += 1;
       },
@@ -211,6 +215,7 @@ describe("tmux runner latency behavior", () => {
       historySize: 0,
     };
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         sendLiteralCount += 1;
         if (sendLiteralCount >= 3) {
@@ -260,6 +265,7 @@ describe("tmux runner latency behavior", () => {
     let snapshot = "READY";
 
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         state = {
           cursorX: 10,
@@ -316,6 +322,7 @@ describe("tmux runner latency behavior", () => {
     };
     let snapshot = "READY";
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         sendLiteralCount += 1;
         state = {

@@ -89,7 +89,7 @@ describe("agent prompt envelope", () => {
       "For schedule/loop/reminder requests, inspect `clisbot loops --help --channel slack` and use the loops CLI.",
     );
     expect(prompt).toContain(
-      "For durable queue requests, inspect `clisbot queues --help --channel slack` and use the queues CLI.",
+      "For durable queue requests, inspect `clisbot queues --help --channel slack` and use the queues CLI, with the same `--bot <this bot's id>` and --sender flags.",
     );
     expect(prompt).toContain(
       "Before sensitive actions or clisbot configuration changes, check permissions with `clisbot auth get-permissions --sender slack:U123 --agent default --json`.",
@@ -178,7 +178,7 @@ describe("agent prompt envelope", () => {
       "For schedule/loop/reminder requests, inspect `clisbot loops --help --channel telegram` and use the loops CLI.",
     );
     expect(prompt).toContain(
-      "For durable queue requests, inspect `clisbot queues --help --channel telegram` and use the queues CLI.",
+      "For durable queue requests, inspect `clisbot queues --help --channel telegram` and use the queues CLI, with the same `--bot <this bot's id>` and --sender flags.",
     );
     expect(prompt).toContain("`clisbot auth get-permissions --sender telegram:123 --agent default --json`");
   });
@@ -255,7 +255,7 @@ describe("agent prompt envelope", () => {
       "For schedule/loop/reminder requests, inspect `clisbot loops --help --channel zalo-bot` and use the loops CLI.",
     );
     expect(prompt).toContain(
-      "For durable queue requests, inspect `clisbot queues --help --channel zalo-bot` and use the queues CLI.",
+      "For durable queue requests, inspect `clisbot queues --help --channel zalo-bot` and use the queues CLI, with the same `--bot <this bot's id>` and --sender flags.",
     );
     expect(prompt).toContain("`clisbot auth get-permissions --sender zalo-bot:aaa741c34d8fa4d1fd9e --agent default --json`");
   });

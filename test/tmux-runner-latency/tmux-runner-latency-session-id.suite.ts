@@ -22,6 +22,7 @@ describe("tmux runner latency behavior", () => {
     };
 
     const fakeTmux = {
+      async sendKeyLiteral(_sessionName: string, _text: string) {},
       async sendLiteral(_sessionName: string, text: string) {
         snapshot = `${snapshot}\n> ${text}`;
         state = {
@@ -75,6 +76,7 @@ describe("tmux runner latency behavior", () => {
     };
 
     const fakeTmux = {
+      async sendKeyLiteral(_sessionName: string, _text: string) {},
       async sendLiteral(_sessionName: string, text: string) {
         snapshot = `${snapshot}${text}`;
         state = {
@@ -144,6 +146,7 @@ describe("tmux runner latency behavior", () => {
     };
 
     const fakeTmux = {
+      async sendKeyLiteral(_sessionName: string, _text: string) {},
       async sendLiteral(_sessionName: string, text: string) {
         snapshot = `${snapshot}${text}`;
         state = {
@@ -210,6 +213,7 @@ describe("tmux runner latency behavior", () => {
     };
 
     const fakeTmux = {
+      async sendKeyLiteral(_sessionName: string, _text: string) {},
       async sendLiteral(_sessionName: string, text: string) {
         state = {
           cursorX: text.length,

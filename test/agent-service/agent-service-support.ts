@@ -334,6 +334,8 @@ export class FakeTmuxClient {
     this.serverRunning = true;
   }
 
+  async sendKeyLiteral(_sessionName: string, _text: string) {}
+
   async sendLiteral(sessionName: string, text: string) {
     const session = this.requireSession(sessionName);
     this.literalInputs.push({

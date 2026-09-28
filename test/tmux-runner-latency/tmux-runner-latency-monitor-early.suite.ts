@@ -25,6 +25,7 @@ describe("tmux runner latency behavior", () => {
     };
 
     const fakeTmux = {
+      async sendKeyLiteral(_sessionName: string, _text: string) {},
       async sendLiteral(_sessionName: string, text: string) {
         if (!trusted) {
           throw new Error("prompt pasted before trust acceptance");
@@ -97,6 +98,7 @@ describe("tmux runner latency behavior", () => {
     let submitted = false;
 
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         pasteVisible = true;
       },
@@ -220,6 +222,7 @@ describe("tmux runner latency behavior", () => {
     let literalVisible = false;
 
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         literalVisible = true;
       },

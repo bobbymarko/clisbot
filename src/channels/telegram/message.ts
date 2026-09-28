@@ -41,6 +41,32 @@ export type TelegramAudio = {
   title?: string;
 };
 
+// Video, round video notes and GIF animations (added 2026-09-27 so agents can see what a
+// user sends, not just photos and voice). Telegram delivers a GIF as an `animation` AND,
+// for backward compatibility, as a `document` of the same file, so attachments.ts only
+// downloads `animation` when no `document` came with it.
+export type TelegramVideo = {
+  file_id: string;
+  file_name?: string;
+  mime_type?: string;
+  file_size?: number;
+  duration?: number;
+};
+
+export type TelegramVideoNote = {
+  file_id: string;
+  file_size?: number;
+  duration?: number;
+};
+
+export type TelegramAnimation = {
+  file_id: string;
+  file_name?: string;
+  mime_type?: string;
+  file_size?: number;
+  duration?: number;
+};
+
 export type TelegramLocation = {
   latitude: number;
   longitude: number;
@@ -68,6 +94,9 @@ export type TelegramMessage = {
   photo?: TelegramPhotoSize[];
   voice?: TelegramVoice;
   audio?: TelegramAudio;
+  video?: TelegramVideo;
+  video_note?: TelegramVideoNote;
+  animation?: TelegramAnimation;
   location?: TelegramLocation;
   venue?: TelegramVenue;
   forum_topic_created?: {
@@ -82,10 +111,28 @@ export type TelegramMessage = {
   media_group_messages?: TelegramMessage[];
 };
 
+// Reactions on messages (2026-09-27). Delivered as their own update kind, and only when
+// the bot asks for "message_reaction" in allowed_updates. Telegram sends the full old and
+// new reaction lists; a removal is a new_reaction that no longer contains the emoji.
+export type TelegramReactionType =
+  | { type: "emoji"; emoji: string }
+  | { type: "custom_emoji"; custom_emoji_id: string }
+  | { type: "paid" };
+
+export type TelegramMessageReactionUpdated = {
+  chat: TelegramChat;
+  message_id: number;
+  user?: TelegramUser;
+  date: number;
+  old_reaction: TelegramReactionType[];
+  new_reaction: TelegramReactionType[];
+};
+
 export type TelegramUpdate = {
   update_id: number;
   message?: TelegramMessage;
   edited_message?: TelegramMessage;
+  message_reaction?: TelegramMessageReactionUpdated;
 };
 
 export function getTelegramUpdateMessage(update: TelegramUpdate) {

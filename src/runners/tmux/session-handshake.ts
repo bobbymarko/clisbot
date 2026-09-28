@@ -22,6 +22,7 @@ const PASTE_CONFIRM_MAX_ATTEMPTS = 3;
 const PASTE_CAPTURE_REVALIDATE_POLL_INTERVAL_MS = 40;
 const PASTE_CAPTURE_REVALIDATE_MAX_WAIT_MS = 160;
 const SUBMIT_CONFIRM_POLL_INTERVAL_MS = 40;
+export const PROMPT_TYPED_PREFIX = "New clisbot message, act on it as the sender's own words: ";
 // Submit settling exits as soon as the composer truthfully drains, so a wider
 // window only slows down the genuine-failure path. The previous 160ms/320ms
 // windows produced false TmuxSubmitUnconfirmedError under host load or slow
@@ -629,6 +630,13 @@ async function deliverTmuxPasteWithConfirmation(params: {
         attempt,
       });
     }
+    // 2026-09-26: the paste is bracketed, so Claude Code hands the model the whole prompt as
+    // <pasted_content>, and the model treats instructions inside a paste as untrusted unless the
+    // user's own words ask for them. Nova stalled on every phone request that way ("you pasted
+    // something, what should I do with it"). A short line TYPED before the paste is the user's own
+    // words; the model then acts on the pasted prompt. Typed, not pasted, so it stays outside the
+    // wrapper; single-line, so no paste heuristic wraps it either.
+    await params.tmux.sendKeyLiteral(params.sessionName, PROMPT_TYPED_PREFIX);
     await params.tmux.sendLiteral(params.sessionName, params.text);
     const pasteSettlement = await waitForPanePasteSettlement({
       tmux: params.tmux,
