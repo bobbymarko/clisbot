@@ -181,5 +181,52 @@ async function resolveTelegramSingleMessageAttachmentPaths(params: {
     }
   }
 
+  // Videos, round video notes and GIF animations. Before 2026-09-27 none of these were
+  // downloaded, so a video sent to an agent silently arrived as an empty message. The
+  // Bot API caps getFile downloads at 20 MB; a larger video fails here and is logged,
+  // which is the same failure mode every other attachment kind already has.
+  const videoLike: Array<{ fileId?: string; fileName?: string; mimeType?: string; base: string }> = [
+    {
+      fileId: params.message.video?.file_id,
+      fileName: params.message.video?.file_name,
+      mimeType: params.message.video?.mime_type ?? "video/mp4",
+      base: "telegram-video",
+    },
+    {
+      fileId: params.message.video_note?.file_id,
+      mimeType: "video/mp4",
+      base: "telegram-video-note",
+    },
+    {
+      // A GIF also arrives as `document`, which the block above already saved.
+      fileId: params.message.document ? undefined : params.message.animation?.file_id,
+      fileName: params.message.animation?.file_name,
+      mimeType: params.message.animation?.mime_type ?? "video/mp4",
+      base: "telegram-animation",
+    },
+  ];
+  for (const item of videoLike) {
+    if (!item.fileId) {
+      continue;
+    }
+    try {
+      const filePath = await downloadTelegramAttachment({
+        botToken: params.botToken,
+        fileId: item.fileId,
+        workspacePath: params.workspacePath,
+        sessionKey: params.sessionKey,
+        messageId: params.messageId,
+        originalFilename: item.fileName,
+        contentType: item.mimeType,
+        defaultBaseName: item.base,
+      });
+      if (filePath) {
+        attachmentPaths.push(filePath);
+      }
+    } catch (error) {
+      console.error(`${item.base} download failed`, error);
+    }
+  }
+
   return attachmentPaths;
 }

@@ -165,6 +165,7 @@ describe("tmux runner latency behavior", () => {
     const runningSnapshots: string[] = [];
 
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         literalVisible = true;
       },
@@ -241,6 +242,7 @@ describe("tmux runner latency behavior", () => {
     const runningSnapshots: string[] = [];
 
     const fakeTmux = {
+      async sendKeyLiteral() {},
       async sendLiteral() {
         literalVisible = true;
       },

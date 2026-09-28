@@ -263,6 +263,11 @@ export class TmuxClient {
     await this.pasteLiteralTarget(this.rawTarget(target), text);
   }
 
+  async sendKeyLiteral(sessionName: string, text: string) {
+    // Typed keystrokes (no bracketed paste): what a human at the keyboard would have typed.
+    await this.execOrThrow(["send-keys", "-t", this.target(sessionName), "-l", "--", text]);
+  }
+
   async sendKey(sessionName: string, key: string) {
     await this.execOrThrow(["send-keys", "-t", this.target(sessionName), key]);
   }

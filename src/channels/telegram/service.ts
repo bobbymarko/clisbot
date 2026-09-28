@@ -43,6 +43,7 @@ import {
   type TelegramUpdate,
 } from "./message.ts";
 import { TelegramLocationStore } from "./location-store.ts";
+import { TelegramReactionStore, summarizeTelegramReactions } from "./reaction-store.ts";
 import { resolveTelegramUnroutedGuidanceModeForEvent } from "./feedback.ts";
 import {
   resolveTelegramConversationTarget,
@@ -398,6 +399,7 @@ export class TelegramPollingService {
   private readonly mediaGroupDispatcher = new TelegramMediaGroupDispatcher(this.ingressDispatcher);
   private readonly processingIndicators = new ConversationProcessingIndicatorCoordinator();
   private readonly locationStore = new TelegramLocationStore();
+  private readonly reactionStore = new TelegramReactionStore();
 
   constructor(
     private readonly loadedConfig: LoadedConfig,
@@ -501,7 +503,8 @@ export class TelegramPollingService {
           {
             timeout: telegramConfig.polling.timeoutSeconds,
             offset: this.nextUpdateId,
-            allowed_updates: ["message", "edited_message"],
+            // "message_reaction" is recorded only (see reaction-store.ts), never prompted.
+            allowed_updates: ["message", "edited_message", "message_reaction"],
           },
           {
             signal: controller.signal,
@@ -596,6 +599,25 @@ export class TelegramPollingService {
     update: TelegramUpdate,
     controls?: OrderedIngressControls,
   ) {
+    // Reactions carry no message, so they must be handled before the skip check (which
+    // would drop them as "no-message"). They are recorded and never start a turn.
+    if (update.message_reaction) {
+      const reaction = update.message_reaction;
+      try {
+        const emojis = reaction.new_reaction.flatMap((r) => (r.type === "emoji" ? [r.emoji] : []));
+        const who = reaction.user;
+        await this.reactionStore.record(`${this.botId}:${reaction.chat.id}`, {
+          messageId: reaction.message_id,
+          userName: who?.first_name || who?.username || "someone",
+          emojis,
+          updatedAt: new Date(reaction.date * 1000).toISOString(),
+        });
+      } catch (error) {
+        console.error("telegram reaction record failed", error);
+      }
+      return;
+    }
+
     const skipReason = getTelegramUpdateSkipReason(update);
     if (skipReason) {
       return;
@@ -1030,6 +1052,18 @@ export class TelegramPollingService {
         agentId: route.agentId,
         time: promptTime,
       });
+      // Surface the inbound id (so the agent can react to this very message) and any
+      // reactions recorded since the last prompt here. take() consumes them, so each
+      // reaction is shown exactly once.
+      promptContext.messageId = String(message.message_id);
+      try {
+        const pendingReactions = await this.reactionStore.take(`${this.botId}:${message.chat.id}`);
+        if (pendingReactions.length > 0) {
+          promptContext.recentReactions = summarizeTelegramReactions(pendingReactions);
+        }
+      } catch (error) {
+        console.error("telegram reaction read failed", error);
+      }
       const agentPromptText = buildAgentPromptText({
         text: enrichPromptText(promptText),
         identity,
@@ -1209,7 +1243,8 @@ export class TelegramPollingService {
           "getUpdates",
           {
             timeout: 0,
-            allowed_updates: ["message", "edited_message"],
+            // "message_reaction" is recorded only (see reaction-store.ts), never prompted.
+            allowed_updates: ["message", "edited_message", "message_reaction"],
           },
         ),
       retryDelayMs: telegramConfig.polling.retryDelayMs,

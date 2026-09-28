@@ -32,6 +32,11 @@ export type SurfacePromptContext = {
   scheduledLoop?: {
     id: string;
   };
+  // The inbound message's platform id, so the agent can react to or reply to it.
+  messageId?: string;
+  // Reactions left on the bot's messages since the last prompt in this chat, already
+  // summarised ("Bob 👍 on #6064"). Recorded by the channel, never prompted on their own.
+  recentReactions?: string[];
 };
 
 export function resolveSurfacePromptTime(value?: number | string | Date) {
@@ -147,6 +152,10 @@ export function renderSurfacePromptContext(context: SurfacePromptContext) {
     `- sender: ${renderSenderPromptText(context.sender)}`,
     `- surface: ${renderSurfacePromptText(context.surface)}`,
     ...(context.scheduledLoop ? [`- message: scheduled loop ${context.scheduledLoop.id}`] : []),
+    ...(context.messageId ? [`- message id: ${context.messageId}`] : []),
+    ...(context.recentReactions?.length
+      ? [`- reactions since your last prompt: ${context.recentReactions.join("; ")}`]
+      : []),
   ].join("\n");
 }
 
