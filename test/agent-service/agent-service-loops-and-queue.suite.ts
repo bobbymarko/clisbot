@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from "bun:test";
+import { describe, expect, mock, spyOn, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -623,21 +623,27 @@ describe("AgentService loops and queue", () => {
       sessionKey: "agent:default:slack:channel:c4:thread:queue-order",
     };
     const state = new AgentSessionState(new SessionStore(storePath));
-    await state.setQueuedItem(
-      resolveAgentTarget(loadedConfig, target),
-      createStoredQueueItem({
-        promptText: "old persisted prompt",
-        promptSummary: "old persisted prompt",
-      }),
-    );
+    const oldItem = createStoredQueueItem({
+      promptText: "old persisted prompt",
+      promptSummary: "old persisted prompt",
+    });
+    await state.setQueuedItem(resolveAgentTarget(loadedConfig, target), oldItem);
 
     const tmux = new FakeTmuxClient();
     const service = new AgentService(loadedConfig, {
       tmux: tmux as unknown as TmuxClient,
     });
-    const newer = service.enqueuePrompt(target, "new prompt", {
-      onUpdate: () => undefined,
-    });
+    // Force the same timestamp: restoration must win even without a clock tick.
+    const clock = spyOn(Date, "now").mockReturnValue(oldItem.createdAt);
+    const newer = (() => {
+      try {
+        return service.enqueuePrompt(target, "new prompt", {
+          onUpdate: () => undefined,
+        });
+      } finally {
+        clock.mockRestore();
+      }
+    })();
 
     await newer.result;
     // Completion snapshots may contain only the latest turn. Assert dispatch order

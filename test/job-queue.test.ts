@@ -2,6 +2,29 @@ import { describe, expect, test } from "bun:test";
 import { AgentJobQueue, ClearedQueuedTaskError } from "../src/agents/queue/job-queue.ts";
 
 describe("AgentJobQueue", () => {
+  test("restored entries win timestamp ties while preserving chronological and FIFO order", async () => {
+    const queue = new AgentJobQueue();
+    const order: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const entries = [
+      { id: "incoming-first", createdAt: 20 },
+      { id: "incoming-second", createdAt: 20 },
+      { id: "saved-first", createdAt: 20, restored: true },
+      { id: "saved-second", createdAt: 20, restored: true },
+      { id: "earlier", createdAt: 10 },
+      { id: "later-saved", createdAt: 30, restored: true },
+    ];
+    const results = entries.map((entry) => queue.enqueue("default", async () => {
+      order.push(entry.id);
+    }, { ...entry, canStart: async () => { await gate; return true; } }).result);
+    release();
+    await Promise.all(results);
+    expect(order).toEqual([
+      "earlier", "saved-first", "saved-second", "incoming-first", "incoming-second", "later-saved",
+    ]);
+  });
+
   test("runs jobs serially per key", async () => {
     const queue = new AgentJobQueue();
     const order: string[] = [];

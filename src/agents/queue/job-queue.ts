@@ -22,6 +22,7 @@ type QueueEntry<T> = {
   text?: string;
   createdAt: number;
   sequence: number;
+  restored: boolean;
   status: "pending" | "running";
   canStart?: QueueCanStart;
   task: QueueTask<T>;
@@ -51,7 +52,7 @@ export class AgentJobQueue {
   enqueue<T>(
     key: string,
     task: QueueTask<T>,
-    options: { id?: string; text?: string; createdAt?: number; canStart?: QueueCanStart } & QueueLifecycle<T> = {},
+    options: { id?: string; text?: string; createdAt?: number; restored?: boolean; canStart?: QueueCanStart } & QueueLifecycle<T> = {},
   ) {
     const state = this.getOrCreateState(key);
     let resolve!: (value: T | PromiseLike<T>) => void;
@@ -66,6 +67,7 @@ export class AgentJobQueue {
       text: options.text,
       createdAt: options.createdAt ?? Date.now(),
       sequence: this.nextSequence++,
+      restored: options.restored ?? false,
       status: "pending",
       canStart: options.canStart,
       task,
@@ -152,6 +154,11 @@ export class AgentJobQueue {
       }
       if (left.createdAt !== right.createdAt) {
         return left.createdAt - right.createdAt;
+      }
+      // Reconciliation can insert saved work after the incoming prompt starts
+      // waiting. Equal millisecond timestamps must not let that prompt pass it.
+      if (left.restored !== right.restored) {
+        return left.restored ? -1 : 1;
       }
       return left.sequence - right.sequence;
     });

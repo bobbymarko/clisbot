@@ -40,10 +40,18 @@ resume after interruption and delete the replacement run. A deterministic
 regression failed before the fix; completion now rechecks run identity after
 capture and before removal. The second full check passed both recovery tests,
 with 1,067 passes and one different failure: persisted queue ordering. The queue
-test passes alone, so the full gate remains red; do not dismiss this as harmless.
-Inspection suggests equal-millisecond creation timestamps may let the newly
-enqueued item win the in-memory sequence tie before persisted restoration; this
-is a hypothesis to reproduce before changing queue behavior.
+test originally passed alone. Freezing only the incoming admission timestamp to
+the saved item's timestamp reproduced the failure deterministically. The queue
+now gives restored entries precedence on timestamp ties while preserving
+chronological order and enqueue order within each group. The 19 focused queue
+tests pass. The full gate now passes: 1,069 tests, zero failures, plus typecheck.
+The package build also passes.
+
+Naming review: `restored` describes in-memory queue-entry provenance owned by
+`AgentJobQueue`, supplied only by persisted-item reconciliation. The focused
+inventory found no conflicting use in `src/agents/queue`; no public or persisted
+field changes or migrations are required. The runtime architecture records the
+ordering contract. This is not a general priority mechanism.
 
 Typecheck, package build, 56 focused message/transcript tests and eight submit
 tests passed. No configured test-surface variables were found in the live repo's

@@ -90,6 +90,13 @@ The agents layer must not depend on tmux-specific terms such as panes, send-keys
 
 In the current codebase, `SessionService` is the main runtime owner that enforces this boundary for active session execution.
 
+Queue admission remains chronological by `createdAt`. On equal timestamps,
+entries restored from durable storage precede newly admitted entries; each group
+retains its enqueue sequence. `AgentJobQueue` owns this ordering, using the
+in-memory `restored` flag supplied by `ManagedQueueController` during restoration.
+The flag is runtime provenance, not a persisted queue status or a configurable
+priority. Already-running entries are never preempted by restoration.
+
 ## Runner Rule
 
 Runners are backend-specific.

@@ -312,6 +312,7 @@ export class ManagedQueueController {
       {
         id: item.id,
         createdAt: item.createdAt,
+        restored: true,
         text: item.promptSummary,
         canStart: async () => this.canStartPersistedQueueItem(target, item),
         onComplete: async (value) => {
