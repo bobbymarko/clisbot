@@ -181,7 +181,8 @@ export async function waitForTmuxSessionBootstrap(params: {
           };
         }
       }
-      if (readyRegex && !snapshotHasActiveReadyPattern(snapshot, readyRegex)) {
+      if (snapshotShowsCodexLoading(snapshot) ||
+          (readyRegex && !snapshotHasActiveReadyPattern(snapshot, readyRegex))) {
         await sleep(SESSION_BOOTSTRAP_POLL_INTERVAL_MS);
         continue;
       }
@@ -238,6 +239,16 @@ export async function acceptStartupContinuePrompt(params: {
   }
 }
 
+function snapshotShowsCodexLoading(snapshot: string) {
+  // Resume can render a usable-looking composer before restoring history.
+  // Only inspect the latest header, so old loading frames in scrollback cannot
+  // block a subsequently ready session.
+  const headerIndex = snapshot.lastIndexOf(">_ OpenAI Codex");
+  if (headerIndex < 0) return false;
+  const activeHeader = snapshot.slice(headerIndex).split(/^[›❯]/m)[0] ?? "";
+  return /model:\s*loading\b|^\s*Resuming session(?:…|\.\.\.)/im.test(activeHeader);
+}
+
 function snapshotHasActiveReadyPattern(snapshot: string, readyRegex: RegExp) {
   const lines = splitNormalizedLines(snapshot);
   let readyLineIndex = -1;
@@ -266,7 +277,9 @@ export function isPromptMetadataLine(line: string) {
   return (
     /^gpt-[\w.-]+\b/i.test(line) ||
     /^model:\s*/i.test(line) ||
-    /^session:\s*/i.test(line)
+    /^session:\s*/i.test(line) ||
+    /^⚠ \d+ warnings? · f2 to view$/.test(line) ||
+    /^← for agents · \? for shortcuts(?:\s+⚠ \d+ warnings? · f2 to view)?$/.test(line)
   );
 }
 

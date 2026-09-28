@@ -587,10 +587,11 @@ function cleanInteractionSnapshotInternal(raw: string, options?: {
   const isGemini = looksLikeGeminiSnapshot(lines);
   const promptStripped = isCodex
     ? dropCodexPromptBlocks(lines.filter((line, index) => {
-      // Codex's completion clock sits immediately before its next composer.
+      // Codex's completion clock precedes its composer, sometimes with a UI tip.
       // Preserve clock-like answer content everywhere else.
       if (!/^ {2}\d{1,2}:\d{2}\s*$/.test(line)) return true;
-      const next = lines.slice(index + 1).find((candidate) => candidate.trim());
+      const next = lines.slice(index + 1).find((candidate) =>
+        candidate.trim() && !candidate.trim().startsWith("Tip:"));
       return !/^\s*›/.test(next ?? "");
     }))
     : isClaude

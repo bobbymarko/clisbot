@@ -47,6 +47,29 @@ describe("tmux runner latency behavior", () => {
     expect(elapsedMs).toBeLessThan(400);
   });
 
+  test("waits for Codex resume to finish despite its placeholder composer", async () => {
+    const loading = "│ >_ OpenAI Codex (v0.157.1) │\n│ model: loading /model to change │\nResuming session…\n› Ask Codex to do anything";
+    const ready = "│ >_ OpenAI Codex (v0.157.1) │\n│ model: GPT-6-Astra │\n› Ask Codex to do anything\nGPT-6-Astra default · /tmp/test\n← for agents · ? for shortcuts   ⚠ 1 warning · f2 to view";
+    let captures = 0;
+    const result = await waitForTmuxSessionBootstrap({
+      tmux: { capturePane: async () => ++captures === 1 ? loading : loading + "\n" + ready } as unknown as TmuxClient,
+      sessionName: "resume-test", captureLines: 200, startupDelayMs: 2_000,
+      readyPattern: "(?:^|\\s)›\\s",
+    });
+    expect(captures).toBe(2);
+    expect(result.status).toBe("ready");
+    expect(result.snapshot).toEndWith(ready);
+  });
+
+  test("times out instead of submitting into a Codex loading composer", async () => {
+    const result = await waitForTmuxSessionBootstrap({
+      tmux: { capturePane: async () => "│ >_ OpenAI Codex (v0.157.1) │\n│ model: loading │\nResuming session…\n› Ask Codex to do anything" } as unknown as TmuxClient,
+      sessionName: "resume-test", captureLines: 200, startupDelayMs: 100,
+      readyPattern: "(?:^|\\s)›\\s",
+    });
+    expect(result.status).toBe("timeout");
+  });
+
   test("waitForTmuxSessionBootstrap honors a ready pattern instead of the first non-empty pane", async () => {
     let captureCount = 0;
     const fakeTmux = {
@@ -66,7 +89,7 @@ describe("tmux runner latency behavior", () => {
       tmux: fakeTmux,
       sessionName: "test-session",
       captureLines: 80,
-      startupDelayMs: 500,
+      startupDelayMs: 2_000, // This checks capture ordering, not scheduler latency.
       readyPattern: "Type your message or @path/to/file",
     });
 

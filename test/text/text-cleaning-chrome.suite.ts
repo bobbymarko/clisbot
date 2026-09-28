@@ -25,6 +25,7 @@ describe("snapshot shaping", () => {
     expect(cleanInteractionSnapshot("• CODEX_OK\n\n  22:28\n\n› Ask Codex to do anything")).toBe("• CODEX_OK");
     expect(cleanInteractionSnapshot("• Meet at 22:28\n\n  22:28\n\n› Ask Codex to do anything")).toBe("• Meet at 22:28");
     expect(cleanInteractionSnapshot("22:28")).toBe("22:28");
+    expect(cleanInteractionSnapshot("• READINESS_OK\n\n  06:27\n\n  Tip: Use /plugins to browse plugins.\n\n› Ask Codex to do anything")).toBe("• READINESS_OK");
     expect(cleanInteractionSnapshot("✻ Worked for 2s · done 10:28 PM")).toBe("");
     expect(cleanInteractionSnapshot("✻ Cooked for 1s · done 10:29 PM")).toBe("");
     expect(cleanInteractionSnapshot("✻ Brewed for 1s · done 10:30 PM")).toBe("");

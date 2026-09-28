@@ -2,7 +2,8 @@
 
 The running installation uses `/home/bobbymarko/clisbot-integration-20260928`,
 branch `burro/upstream-integration-20260928`. Bobby authorized the cutover; the
-latest deployed executable is built from `23ccbe5d8`. All bots still use tmux.
+initial rollout ended at `23ccbe5d8`; subsequent deployment receipts identify
+the current executable separately from source HEAD. All bots still use tmux.
 Bobby chose to retain tmux rather than migrate Burro to ACP.
 
 ## Sources preserved
@@ -109,3 +110,40 @@ the executable revision separately from subsequent documentation commits.
 Final integration gate after all footer/banner fixes: `bun run check` passed
 typecheck and 1,070 tests across 127 files, with zero failures. No executable
 changes followed the previously verified build at `23ccbe5d8`.
+
+## September 28 resume readiness incident
+
+A fresh Codex tmux pane displayed a placeholder composer while its header still
+said `model: loading` and `Resuming session…`. The previous readiness matcher
+accepted that composer, allowing a new prompt to be pasted before conversation
+restoration completed. The observed chat then contained restored tool history.
+Bootstrap now rejects loading/resuming state in the latest Codex header even
+when the configured composer pattern matches. Earlier loading headers in
+scrollback do not block a later ready header. Two regressions reproduced the
+premature-ready result before this guard and pass afterward, including timeout
+without submission when loading never completes. This addresses the observed
+startup race; it does not establish full interrupted-turn or quota recovery.
+
+Naming review: `snapshotShowsCodexLoading` is a private runner bootstrap predicate,
+consistent with nearby snapshot/pane predicates; no public or persisted names change.
+
+The isolated live Codex check additionally exposed its newer agents/shortcuts
+footer (with warning count). Those exact UI lines are accepted as prompt metadata.
+The clock cleaner now tolerates a UI tip between completion time and composer.
+A tool-free prompt in a fresh session returned its marker; after resuming that
+same isolated session, a different marker was returned without the old answer,
+terminal clock, or tool history. No production conversation was used for this
+resume check. The temporary test folder's trust prompt was accepted manually.
+
+The readiness fix is rolled out only after the stored runtime shows idle agents,
+empty queues, and a quiet interval, to avoid interrupting a reply. The deployment
+job checks revision and bundle hashes again, retains previous executable bytes,
+and verifies the restarted service and all five Telegram pollers. Its receipt
+lives in `artifacts/clisbot-delivery-20260928/deployed.json` in the Burro workspace.
+A queued deployment is not proof of a running fix; inspect that receipt.
+
+Final validation on the complete readiness/display patch: typecheck and 1,072
+full-suite tests passed (zero failures); candidate bundle built successfully.
+The prior short-budget bootstrap test now uses a two-second allowance because
+it verifies capture ordering, not wall-clock latency. The isolated resumed
+runner returned only the new marker (plus its assistant bullet).
