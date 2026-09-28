@@ -596,7 +596,7 @@ function cleanInteractionSnapshotInternal(raw: string, options?: {
   const timerStatusLines: string[] = [];
   const filtered = promptStripped.filter((line) => {
     // Codex completion chrome can survive after the original prompt scrolls away.
-    if (/^\s*(?:[─━]+\s*)?Worked for \d+[hms](?:\s+\d+[hms]){0,2}\s*·\s*[A-Z][a-z]{2} \d{1,2} at \d{1,2}:\d{2}\s*[AP]M(?:\s*[─━]+)?\s*$/.test(line)) {
+    if (/^\s*(?:[─━]+\s*)?Worked for \d+[hms](?:\s+\d+[hms]){0,2}\s*·\s*(?:[A-Z][a-z]{2} \d{1,2} at )?\d{1,2}:\d{2}\s*[AP]M(?:\s*[─━]+)?\s*$/.test(line)) {
       return false;
     }
     if (/^\s*[✻✽✶*]\s+[A-Za-z]+ for \d+[hms](?:\s+\d+[hms]){0,2}\s*·\s*done \d{1,2}:\d{2}\s*[AP]M\s*$/.test(line)) {

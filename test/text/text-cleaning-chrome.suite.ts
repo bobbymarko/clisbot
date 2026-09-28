@@ -34,6 +34,9 @@ describe("snapshot shaping", () => {
   test("drops dated Codex completion chrome without hiding usage guidance or answers", () => {
     const footer = "Worked for 6m 58s · Sep 26 at 2:33 PM";
     expect(cleanInteractionSnapshot(footer)).toBe("");
+    const shortFooter = "Worked for 1m 55s · 10:37 PM";
+    expect(cleanInteractionSnapshot(shortFooter)).toBe("");
+    expect(cleanInteractionSnapshot(`${shortFooter}\n\n• You have 3 usage limit resets available. Run /usage to use one.`)).toBe("• You have 3 usage limit resets available. Run /usage to use one.");
     expect(cleanInteractionSnapshot(`${footer}\n\nThe change is ready.`)).toBe("The change is ready.");
     const usage = "You have 3 usage limit resets available.\nRun /usage to use one.";
     expect(cleanInteractionSnapshot(`${footer}\n\n${usage}`)).toBe(usage);
