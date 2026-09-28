@@ -55,7 +55,21 @@ ordering contract. This is not a general priority mechanism.
 
 Typecheck, package build, 56 focused message/transcript tests and eight submit
 tests passed. No configured test-surface variables were found in the live repo's
-`.env`, so authenticated Claude/Codex delivery and quota recovery remain untested.
+`.env`, so end-to-end chat delivery and quota recovery remain untested.
+Authenticated runner-only checks are recorded below.
+
+## Isolated live runner checks
+
+Real Codex 0.157.1 (Astra) and Claude Code 2.1.283 (Opus 5.5) were launched on a
+separate tmux socket and temporary test workspace. The candidate's actual submit
+and monitor code sent tool-free prompts and captured both expected responses.
+This exposed two additional completion formats: an indented bare clock before
+the Codex composer, and Claude's variable-verb `... for 1s · done 10:30 PM` footer.
+Both are now removed with contextual/structural matching; ordinary answer times
+remain intact. Fresh live roundtrips returned the expected marker with no footer.
+The 75 targeted transcript/settlement tests pass after these fixes. These checks
+validate authenticated runner submission and capture, not end-to-end Telegram
+delivery, quota exhaustion/recovery, or switching the running service.
 
 Offline tests/build use this worktree and a separate CLISBOT_HOME. No production
 config, session store, bot route, package symlink, or running process is changed.

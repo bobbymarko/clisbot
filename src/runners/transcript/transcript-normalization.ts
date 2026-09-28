@@ -581,7 +581,13 @@ function cleanInteractionSnapshotInternal(raw: string, options?: {
   const isClaude = looksLikeClaudeSnapshot(lines);
   const isGemini = looksLikeGeminiSnapshot(lines);
   const promptStripped = isCodex
-    ? dropCodexPromptBlocks(lines)
+    ? dropCodexPromptBlocks(lines.filter((line, index) => {
+      // Codex's completion clock sits immediately before its next composer.
+      // Preserve clock-like answer content everywhere else.
+      if (!/^ {2}\d{1,2}:\d{2}\s*$/.test(line)) return true;
+      const next = lines.slice(index + 1).find((candidate) => candidate.trim());
+      return !/^\s*›/.test(next ?? "");
+    }))
     : isClaude
       ? dropClaudePromptBlocks(lines)
       : isGemini
@@ -591,6 +597,9 @@ function cleanInteractionSnapshotInternal(raw: string, options?: {
   const filtered = promptStripped.filter((line) => {
     // Codex completion chrome can survive after the original prompt scrolls away.
     if (/^\s*(?:[─━]+\s*)?Worked for \d+[hms](?:\s+\d+[hms]){0,2}\s*·\s*[A-Z][a-z]{2} \d{1,2} at \d{1,2}:\d{2}\s*[AP]M(?:\s*[─━]+)?\s*$/.test(line)) {
+      return false;
+    }
+    if (/^\s*[✻✽✶*]\s+[A-Za-z]+ for \d+[hms](?:\s+\d+[hms]){0,2}\s*·\s*done \d{1,2}:\d{2}\s*[AP]M\s*$/.test(line)) {
       return false;
     }
 

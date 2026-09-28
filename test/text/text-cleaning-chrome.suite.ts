@@ -21,6 +21,16 @@ import {
 } from "../../src/runners/transcript/index.ts";
 
 describe("snapshot shaping", () => {
+  test("removes current CLI completion clocks while retaining answer times", () => {
+    expect(cleanInteractionSnapshot("• CODEX_OK\n\n  22:28\n\n› Ask Codex to do anything")).toBe("• CODEX_OK");
+    expect(cleanInteractionSnapshot("• Meet at 22:28\n\n  22:28\n\n› Ask Codex to do anything")).toBe("• Meet at 22:28");
+    expect(cleanInteractionSnapshot("22:28")).toBe("22:28");
+    expect(cleanInteractionSnapshot("✻ Worked for 2s · done 10:28 PM")).toBe("");
+    expect(cleanInteractionSnapshot("✻ Cooked for 1s · done 10:29 PM")).toBe("");
+    expect(cleanInteractionSnapshot("✻ Brewed for 1s · done 10:30 PM")).toBe("");
+    expect(cleanInteractionSnapshot("Cooked for 1s")).toBe("Cooked for 1s");
+  });
+
   test("drops dated Codex completion chrome without hiding usage guidance or answers", () => {
     const footer = "Worked for 6m 58s · Sep 26 at 2:33 PM";
     expect(cleanInteractionSnapshot(footer)).toBe("");
