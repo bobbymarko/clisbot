@@ -21,6 +21,15 @@ import {
 } from "../../src/runners/transcript/index.ts";
 
 describe("snapshot shaping", () => {
+  test("drops dated Codex completion chrome without hiding usage guidance or answers", () => {
+    const footer = "Worked for 6m 58s · Sep 26 at 2:33 PM";
+    expect(cleanInteractionSnapshot(footer)).toBe("");
+    expect(cleanInteractionSnapshot(`${footer}\n\nThe change is ready.`)).toBe("The change is ready.");
+    const usage = "You have 3 usage limit resets available.\nRun /usage to use one.";
+    expect(cleanInteractionSnapshot(`${footer}\n\n${usage}`)).toBe(usage);
+    expect(cleanInteractionSnapshot("I worked for 6m on this fix.")).toBe("I worked for 6m on this fix.");
+  });
+
   test("unwraps soft-wrapped tmux lines into cleaner rendered text", () => {
     const cleaned = cleanInteractionSnapshot(`
 • As of April 4, 2026, I’m not seeing a new official Google update on Gemma 4

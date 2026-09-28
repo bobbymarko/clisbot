@@ -2,15 +2,37 @@ import { describe, expect, test } from "bun:test";
 import type { TmuxClient } from "../../src/runners/tmux/client.ts";
 import {
   captureTmuxSessionIdentity,
+} from "../../src/runners/tmux/identity-capture.ts";
+import {
   acceptTmuxTrustPromptIfPresent,
-  submitTmuxSessionInput,
-  TmuxBootstrapSessionLostError,
   tmuxPaneHasTrustPrompt,
   waitForTmuxSessionBootstrap,
-} from "../../src/runners/tmux/session-handshake.ts";
+} from "../../src/runners/tmux/startup-prompts.ts";
+import {
+  submitTmuxSessionInput,
+} from "../../src/runners/tmux/submit-input.ts";
+import {
+  TmuxBootstrapSessionLostError,
+} from "../../src/runners/tmux/errors.ts";
 import { monitorTmuxRun } from "../../src/runners/tmux/run-monitor.ts";
 
 describe("tmux runner latency behavior", () => {
+  test("types the bracketed-paste intent only for Claude", async () => {
+    for (const [snapshot, expected] of [["Claude Code v2\n❯ ", 1], ["OpenAI Codex\n› ", 0]] as const) {
+      let phase = 0;
+      let typed = 0;
+      const fakeTmux = {
+        async sendKeyLiteral() { typed += 1; },
+        async sendLiteral() { phase = 1; },
+        async sendKey() { phase = 2; },
+        async getPaneState() { return { cursorX: phase, cursorY: phase, historySize: phase }; },
+        async capturePane() { return phase === 0 ? snapshot : phase === 1 ? "ping" : "Working"; },
+      } as unknown as TmuxClient;
+      await submitTmuxSessionInput({ tmux: fakeTmux, sessionName: "fixture", text: "ping", promptSubmitDelayMs: 1 });
+      expect(typed).toBe(expected);
+    }
+  });
+
   test("submitTmuxSessionInput retries Enter once when pane state stays unchanged", async () => {
     let enterCount = 0;
     let state = {

@@ -20,6 +20,33 @@ describe("SessionService observers and recovery", () => {
     mock.restore();
   });
 
+  test("completion cannot clear a replacement run while session identity capture is pending", async () => {
+    const resolved = createResolvedTarget();
+    let resumeCapture!: (value: string) => void;
+    const capture = new Promise<string>((resolve) => { resumeCapture = resolve; });
+    const setSessionRuntime = mock(async () => undefined);
+    const manager = new SessionService(
+      { setSessionRuntime } as unknown as AgentSessionState,
+      { recaptureSessionIdAfterRun: () => capture } as unknown as RunnerService,
+      () => resolved,
+    ) as any;
+    const oldRun = createRun(resolved, new Map());
+    oldRun.runId = "old";
+    manager.activeRuns.set(resolved.sessionKey, oldRun);
+    const completion = manager.finishActiveRun(
+      resolved.sessionKey, "old", createUpdate(resolved, { status: "completed" }),
+    );
+    await manager.interruptActiveRun(resolved);
+    const nextRun = createRun(resolved, new Map());
+    nextRun.runId = "next";
+    manager.activeRuns.set(resolved.sessionKey, nextRun);
+    setSessionRuntime.mockClear();
+    resumeCapture("old-session-id");
+    await completion;
+    expect(manager.activeRuns.get(resolved.sessionKey)).toBe(nextRun);
+    expect(setSessionRuntime).not.toHaveBeenCalled();
+  });
+
   test("keeps retryable transport failures attached so later updates can recover", async () => {
     const resolved = createResolvedTarget();
     const manager = createManager(resolved);
@@ -154,7 +181,6 @@ describe("SessionService observers and recovery", () => {
     const resolved = createResolvedTarget();
     const setSessionRuntime = mock(async () => undefined);
     const manager = new SessionService(
-      {} as TmuxClient,
       {
         getEntry: async () => null,
         setSessionRuntime,
@@ -242,7 +268,6 @@ describe("SessionService observers and recovery", () => {
       initialSnapshot: "new pane snapshot",
     }));
     const manager = new SessionService(
-      {} as TmuxClient,
       {
         getEntry: async () => null,
       } as unknown as AgentSessionState,
@@ -269,7 +294,7 @@ describe("SessionService observers and recovery", () => {
     await expect(
       manager.recoverLostMidRun(
         resolved.sessionKey,
-        { timingContext: undefined },
+        { target: { agentId: resolved.agentId, sessionKey: resolved.sessionKey }, timingContext: undefined },
         new Error("can't find session"),
       ),
     ).resolves.toBe(true);
@@ -294,7 +319,6 @@ describe("SessionService observers and recovery", () => {
       };
     });
     const manager = new SessionService(
-      {} as TmuxClient,
       {
         getEntry: async () => null,
       } as unknown as AgentSessionState,
@@ -321,7 +345,7 @@ describe("SessionService observers and recovery", () => {
     await expect(
       manager.recoverLostMidRun(
         resolved.sessionKey,
-        { timingContext: undefined },
+        { target: { agentId: resolved.agentId, sessionKey: resolved.sessionKey }, timingContext: undefined },
         new Error("can't find session"),
       ),
     ).resolves.toBe(true);
@@ -340,13 +364,12 @@ describe("SessionService observers and recovery", () => {
     });
     const restartRunnerWithFreshSessionId = mock(async () => undefined);
     const manager = new SessionService(
-      {} as TmuxClient,
       {
         getEntry: async () => null,
         setSessionRuntime,
       } as unknown as AgentSessionState,
       {
-        canRecoverMidRun: (error: unknown) => {
+        canRecoverMidRun: (_target: unknown, error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
           return /can't find session/i.test(message);
         },
@@ -372,7 +395,7 @@ describe("SessionService observers and recovery", () => {
     await expect(
       manager.recoverLostMidRun(
         resolved.sessionKey,
-        { runId: "run-1", timingContext: undefined },
+        { runId: "run-1", target: { agentId: resolved.agentId, sessionKey: resolved.sessionKey }, timingContext: undefined },
         new Error("can't find session"),
       ),
     ).resolves.toBe(true);
@@ -395,7 +418,6 @@ describe("SessionService observers and recovery", () => {
     });
     const restartRunnerWithFreshSessionId = mock(async () => undefined);
     const manager = new SessionService(
-      {} as TmuxClient,
       {
         getEntry: async () => ({
           sessionId: "11111111-1111-1111-1111-111111111111",
@@ -403,7 +425,7 @@ describe("SessionService observers and recovery", () => {
         setSessionRuntime,
       } as unknown as AgentSessionState,
       {
-        canRecoverMidRun: (error: unknown) => {
+        canRecoverMidRun: (_target: unknown, error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
           return /can't find session/i.test(message);
         },
@@ -429,7 +451,7 @@ describe("SessionService observers and recovery", () => {
     await expect(
       manager.recoverLostMidRun(
         resolved.sessionKey,
-        { runId: "run-1", timingContext: undefined },
+        { runId: "run-1", target: { agentId: resolved.agentId, sessionKey: resolved.sessionKey }, timingContext: undefined },
         new Error("can't find session"),
       ),
     ).resolves.toBe(true);

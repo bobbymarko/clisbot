@@ -47,6 +47,7 @@ import {
   ActiveRunInProgressError,
   SessionService,
 } from "../session/session-service.ts";
+import { SessionEventFeed, type SessionFeedEntry } from "../session/run-event-feed.ts";
 export { ActiveRunInProgressError };
 import {
   SurfaceRuntime,
@@ -80,6 +81,7 @@ export type SessionDiagnostics = {
 export class AgentService {
   private tmuxClient: TmuxClient;
   private readonly queue = new AgentJobQueue();
+  private readonly sessionEvents = new SessionEventFeed();
   private readonly sessionState: AgentSessionState;
   private readonly sessionMapping: SessionMapping;
   private runnerSessions: RunnerService;
@@ -130,11 +132,22 @@ export class AgentService {
 
   private createSessionService() {
     return new SessionService(
-      this.tmuxClient,
       this.sessionState,
       this.runnerSessions,
       (target) => this.resolveTarget(target),
+      this.sessionEvents,
     );
+  }
+
+  readSessionEvents(sessionKey: string, sinceSeq = 0) {
+    return this.sessionEvents.read(sessionKey, sinceSeq);
+  }
+
+  subscribeSessionEvents(
+    sessionKey: string,
+    listener: (entry: SessionFeedEntry) => void,
+  ) {
+    return this.sessionEvents.subscribe(sessionKey, listener);
   }
 
   private createManagedQueueController() {
@@ -210,6 +223,7 @@ export class AgentService {
     this.managedLoops.clear();
     this.managedQueues.clear();
     await this.activeRuns.stop();
+    await this.runnerSessions.shutdown();
   }
 
   async cleanupStaleSessions() {
@@ -232,9 +246,12 @@ export class AgentService {
     return this.runnerSessions.captureTranscript(target);
   }
 
-  async interruptSession(target: AgentSessionTarget) {
+  async interruptSession(
+    target: AgentSessionTarget,
+    options: { reason?: string } = {},
+  ) {
     const runner = await this.runnerSessions.interruptSession(target);
-    const activeRun = await this.activeRuns.interruptActiveRun(target);
+    const activeRun = await this.activeRuns.interruptActiveRun(target, options);
     return {
       ...runner,
       interrupted: runner.interrupted || activeRun.interrupted,
@@ -348,6 +365,10 @@ export class AgentService {
 
   canSteerActiveRun(target: AgentSessionTarget) {
     return this.activeRuns.canSteerActiveRun(target);
+  }
+
+  runnerCapabilities(target: AgentSessionTarget) {
+    return this.runnerSessions.capabilitiesFor(target);
   }
 
   async submitSessionInput(target: AgentSessionTarget, text: string) {
