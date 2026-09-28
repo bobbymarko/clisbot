@@ -576,7 +576,12 @@ export function collapseAdjacentDuplicateLines(raw: string) {
 function cleanInteractionSnapshotInternal(raw: string, options?: {
   preserveTimerStatusLines?: boolean;
 }) {
-  const lines = splitNormalizedLines(raw);
+  // Reset availability is idle UI chrome, not a quota-exhaustion error.
+  // Match terminal wrapping as well as the one-line form.
+  const lines = splitNormalizedLines(normalizePaneText(raw).replace(
+    /^[ \t]*(?:[•●]\s*)?You have\s+\d+\s+usage limit resets?\s+available\.(?:\s+Run\s+\/usage\s+to\s+use\s+one\.)?[ \t]*$/gm,
+    "",
+  ));
   const isCodex = looksLikeCodexSnapshot(lines);
   const isClaude = looksLikeClaudeSnapshot(lines);
   const isGemini = looksLikeGeminiSnapshot(lines);

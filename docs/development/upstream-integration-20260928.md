@@ -71,6 +71,11 @@ The 75 targeted transcript/settlement tests pass after these fixes. These checks
 validate authenticated runner submission and capture, not end-to-end Telegram
 delivery, quota exhaustion/recovery, or switching the running service.
 
+Post-cutover reports also exposed the time-only `Worked for ... · 10:37 PM`
+variant and the reset-availability banner. Both are now filtered, including
+terminal-wrapped availability text. Actual quota-exhaustion errors and standalone
+recovery instructions remain visible. No usage reset is consumed by these fixes.
+
 Offline tests/build use this worktree and a separate CLISBOT_HOME. No production
 config, session store, bot route, package symlink, or running process is changed.
 Before switching: compare the live tree to the saved snapshot again, carry any new

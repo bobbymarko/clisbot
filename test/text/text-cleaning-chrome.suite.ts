@@ -31,15 +31,19 @@ describe("snapshot shaping", () => {
     expect(cleanInteractionSnapshot("Cooked for 1s")).toBe("Cooked for 1s");
   });
 
-  test("drops dated Codex completion chrome without hiding usage guidance or answers", () => {
+  test("drops completion and reset-availability chrome without hiding quota errors or answers", () => {
     const footer = "Worked for 6m 58s · Sep 26 at 2:33 PM";
     expect(cleanInteractionSnapshot(footer)).toBe("");
     const shortFooter = "Worked for 1m 55s · 10:37 PM";
     expect(cleanInteractionSnapshot(shortFooter)).toBe("");
-    expect(cleanInteractionSnapshot(`${shortFooter}\n\n• You have 3 usage limit resets available. Run /usage to use one.`)).toBe("• You have 3 usage limit resets available. Run /usage to use one.");
+    expect(cleanInteractionSnapshot(`${shortFooter}\n\n• You have 3 usage limit resets available. Run /usage to use one.`)).toBe("");
     expect(cleanInteractionSnapshot(`${footer}\n\nThe change is ready.`)).toBe("The change is ready.");
     const usage = "You have 3 usage limit resets available.\nRun /usage to use one.";
-    expect(cleanInteractionSnapshot(`${footer}\n\n${usage}`)).toBe(usage);
+    expect(cleanInteractionSnapshot(`${footer}\n\n${usage}`)).toBe("");
+    expect(cleanInteractionSnapshot("• You have 3 usage limit resets available. Run /usage to\n  use one.")).toBe("");
+    expect(cleanInteractionSnapshot(`The change is ready.\n\n${usage}`)).toBe("The change is ready.");
+    const blocked = "You have hit your usage limit. Try again later.\nRun /usage to use one.";
+    expect(cleanInteractionSnapshot(`${footer}\n\n${blocked}`)).toBe(blocked);
     expect(cleanInteractionSnapshot("I worked for 6m on this fix.")).toBe("I worked for 6m on this fix.");
   });
 
