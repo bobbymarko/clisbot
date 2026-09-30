@@ -277,6 +277,7 @@ describe("queues cli", () => {
       "4335",
       "--sender",
       "telegram:1276408333",
+      "--notify",
       "review",
       "queue",
       "state",
@@ -291,6 +292,27 @@ describe("queues cli", () => {
     expect(notifications[0]?.positionAhead).toBe(1);
     expect(notifications[0]?.text).toMatch(/^Queued `[^`]+`: 1 ahead\.\n\nreview queue state$/);
     expect(notifications[0]?.text).not.toContain("Prompt:");
+  });
+
+  test("queue create posts no chat acknowledgement unless --notify (bobbymarko fork)", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "clisbot-queues-cli-quiet-"));
+    process.env.CLISBOT_CONFIG_PATH = join(tempDir, "clisbot.json");
+    writeFileSync(process.env.CLISBOT_CONFIG_PATH, JSON.stringify(buildConfig({
+      socketPath: join(tempDir, "clisbot.sock"),
+      storePath: join(tempDir, "sessions.json"),
+      workspaceTemplate: join(tempDir, "workspaces", "{agentId}"),
+    }), null, 2));
+    let notified = 0;
+    const printed: string[] = [];
+    await runQueuesCli([
+      "create", "--channel", "telegram", "--target", "group:-1001", "--topic-id", "4335",
+      "--sender", "telegram:1276408333", "quiet", "background", "job",
+    ], {
+      print: (line: string) => printed.push(line),
+      sendQueueCreatedNotification: async () => { notified += 1; },
+    });
+    expect(notified).toBe(0);
+    expect(printed.join("\n")).toContain("Queued prompt");
   });
 
   test("renders queue created notifications without truncating the prompt", () => {

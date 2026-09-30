@@ -357,3 +357,12 @@ background job (board triage, repo reviews, the midday check), each of them told
 notices still post for every origin. Items stored before this change have no origin and keep the old behaviour.
 Tests: `test/managed-queue-controller.test.ts` ("pane fallback … origin=…"). Files: queue-state.ts,
 managed-queue-controller.ts, queues-cli.ts, loops-cli.ts, interaction-processing.ts.
+
+## `clisbot queues create` posts no chat acknowledgement unless `--notify` (2026-09-30)
+
+Creating a queue item from the CLI used to post "Queued `<id>`" plus the full prompt into the target chat. Every
+CLI caller here is automation: crons (midday check, trader, brief follow-ups), board triage, repo follow-up and
+agent-to-agent handoffs. So each one landed in Bobby's Telegram (his words: "Nova just sent Queued a0915e9c…").
+The acknowledgement now needs `--notify`, and stdout still prints the id. Chat `/queue` is unchanged. Together
+with the pane-fallback patch above, a quiet background job now reaches the chat only if the agent sends a message.
+Test: `test/queues-cli.test.ts` ("… no chat acknowledgement unless --notify").

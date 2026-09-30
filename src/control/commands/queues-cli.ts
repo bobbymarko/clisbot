@@ -189,6 +189,11 @@ function assertQueueSenderMatchesContext(sender: StoredQueueSender, context: Loo
   }
 }
 
+// bobbymarko fork 2026-09-30: a CLI-created queue item no longer posts "Queued <id>" + the prompt into the
+// chat unless --notify is passed. Every CLI caller here is automation (crons, board triage, repo follow-up)
+// and each acknowledgement landed in Bobby's Telegram as noise. stdout still prints the id.
+const QUEUE_NOTIFY_FLAG = "--notify";
+
 function stripQueueArgs(args: string[]) {
   const valueFlags = new Set([
     "--channel",
@@ -209,7 +214,7 @@ function stripQueueArgs(args: string[]) {
       index += 1;
       continue;
     }
-    if (args[index] !== "--all") {
+    if (args[index] !== "--all" && args[index] !== QUEUE_NOTIFY_FLAG) {
       remaining.push(args[index]);
     }
   }
@@ -405,7 +410,7 @@ async function createQueue(
     item.id,
   );
   const text = renderQueueCreatedNotification({ queueId: item.id, positionAhead, promptText });
-  await deps.sendQueueCreatedNotification({
+  if (args.includes(QUEUE_NOTIFY_FLAG)) await deps.sendQueueCreatedNotification({
     state,
     context,
     resolved,
