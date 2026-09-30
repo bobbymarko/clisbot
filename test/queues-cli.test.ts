@@ -77,7 +77,7 @@ describe("queues cli", () => {
   test("help documents explicit addressing and no current queue", () => {
     const help = renderQueuesHelp();
 
-    expect(help).toContain("queues create --channel <channel-name> --target <route> --sender <principal> <prompt...>");
+    expect(help).toContain("queues create --channel <channel-name> --target <route> --sender <principal> [--notify] <prompt...>");
     expect(help).toContain("queues create --channel slack --target group:C1234567890 --thread-id 1712345678.123456 --sender slack:U1234567890 review backlog");
     expect(help).toContain("queues create --channel telegram --target group:-1001234567890 --topic-id 4335 --sender telegram:1276408333");
     expect(help).toContain("queues create --channel zalo-bot --target dm:user-123 --sender zalo-bot:user-123 review inbox");
