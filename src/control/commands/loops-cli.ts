@@ -323,6 +323,7 @@ function createCountLoopQueueItem(params: {
       params.request.resolvedPrompt.maintenancePrompt,
     ),
     createdBy: params.request.creator.providerId,
+    origin: "loop",
     sender: params.request.creator,
     surfaceBinding: buildStoredSurfaceBinding({
       ...params.request.context.identity,

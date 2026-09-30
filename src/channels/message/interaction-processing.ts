@@ -1417,6 +1417,7 @@ export async function processChannelInteraction<TChunk>(params: {
           explicitQueueMessage ??
           summarizeQueuePrompt(delayedPromptQueueText),
         createdBy: params.senderId,
+        origin: "chat",
         sender: buildLoopSender(params.identity),
         surfaceBinding: buildLoopSurfaceBinding(params.identity),
         protectedControlMutationRule: params.protectedControlMutationRule,

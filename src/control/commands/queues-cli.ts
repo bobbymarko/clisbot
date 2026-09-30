@@ -251,6 +251,7 @@ function createQueueItemForContext(params: {
     ),
     promptSummary: params.promptText,
     createdBy: params.sender.providerId,
+    origin: "cli",
     sender: params.sender,
     surfaceBinding: buildQueueSurfaceBinding(params.context),
   });

@@ -184,6 +184,56 @@ describe("managed durable queue", () => {
     }
   }, { timeout: 15_000 });
 
+  for (const [origin, expectFallback] of [["cli", false], ["loop", false], ["chat", true], [undefined, true]] as const) {
+    test(`pane fallback for a run with no message-tool reply: origin=${origin ?? "unset"} -> ${expectFallback ? "posted" : "silent"}`, async () => {
+      // bobbymarko fork 2026-09-30: automation-queued prompts that finish quietly must not post the pane.
+      const tempDir = mkdtempSync(join(tmpdir(), "clisbot-managed-queue-"));
+      try {
+        const sessionState = new AgentSessionState(new SessionStore(join(tempDir, "sessions.json")));
+        const resolved = createResolvedTarget(tempDir);
+        const item = createStoredQueueItem({
+          promptText: "board triage",
+          promptSummary: "board triage",
+          ...(origin ? { origin } : {}),
+          surfaceBinding: { platform: "telegram", accountId: "default", conversationKind: "dm", chatId: "123" },
+        });
+        await sessionState.setQueuedItem(resolved, item);
+        const settlements: string[] = [];
+        const controller = new ManagedQueueController({
+          queue: new AgentJobQueue(),
+          sessionState,
+          activeRuns: {
+            executePrompt: async () => {
+              await sessionState.setSessionRuntime(resolved, { state: "running", startedAt: Date.now() });
+              return {
+                status: "completed", agentId: resolved.agentId, sessionKey: resolved.sessionKey,
+                sessionName: resolved.sessionName, workspacePath: resolved.workspacePath,
+                snapshot: "HEARTBEAT_OK", fullSnapshot: "HEARTBEAT_OK", initialSnapshot: "",
+              };
+            },
+          } as any,
+          surfaceRuntime: {
+            notifyManagedQueueStart: async () => undefined,
+            buildManagedQueuePrompt: async () => "board triage",
+            notifyManagedQueueSettlement: async (_t: unknown, _i: unknown, u: { snapshot: string }) => {
+              settlements.push(u.snapshot);
+            },
+            notifyManagedQueueFailure: async () => undefined,
+          } as any,
+          getQueueConfig: () => ({ maxPendingItemsPerSession: 10 }),
+          resolveTarget: () => resolved,
+          hasBlockingActiveRun: async () => false,
+          shouldSuppressShutdownError: () => false,
+        });
+        await controller.reconcilePersistedQueueItems();
+        await waitForCondition(async () => (await sessionState.listQueuedItems()).length === 0, 5_000);
+        expect(settlements).toEqual(expectFallback ? ["HEARTBEAT_OK"] : []);
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    }, { timeout: 15_000 });
+  }
+
   test("clears stale persisted running items after the session becomes idle", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "clisbot-managed-queue-"));
     try {

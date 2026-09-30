@@ -347,3 +347,13 @@ a preview anyway, so it is deliberately not wired there.
 **Opt-in.** No existing caller changes behaviour; only `band_watch.py` passes it today.
 
 **Upstream-worthy:** yes. Small, additive, matches an existing flag's shape.
+
+## Automation-queued prompts don't post a pane fallback (2026-09-30)
+
+`clisbot queues create` and count-loop items now carry `origin: "cli"` / `"loop"`, and chat `/queue` items carry
+`origin: "chat"`. When a queued run ends without a message-tool reply, `ManagedQueueController` posts the pane
+snapshot ("Prompt: …" + screen) only for chat or unset origins. Bobby was getting a pane dump for every quiet
+background job (board triage, repo reviews, the midday check), each of them told to send nothing. Failure
+notices still post for every origin. Items stored before this change have no origin and keep the old behaviour.
+Tests: `test/managed-queue-controller.test.ts` ("pane fallback … origin=…"). Files: queue-state.ts,
+managed-queue-controller.ts, queues-cli.ts, loops-cli.ts, interaction-processing.ts.

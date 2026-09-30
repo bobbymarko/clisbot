@@ -317,6 +317,8 @@ export class ManagedQueueController {
         canStart: async () => this.canStartPersistedQueueItem(target, item),
         onComplete: async (value) => {
           if (
+            item.origin !== "cli" &&
+            item.origin !== "loop" &&
             !value.messageToolFinalAlreadySent &&
             !(await this.hasMessageToolFinalForQueueItem(target, item))
           ) {

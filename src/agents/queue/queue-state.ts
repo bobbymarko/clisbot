@@ -16,6 +16,11 @@ export type StoredQueueItem = {
   promptSummary: string;
   promptSource: "custom";
   createdBy?: string;
+  // Where the item came from. "cli" (clisbot queues create) and "loop" items are automation: when the
+  // agent finishes without a message-tool reply, their pane is NOT posted to the chat as a fallback
+  // (bobbymarko fork, 2026-09-30: quiet background jobs were each ending in a pane dump to Bobby).
+  // Missing = created before this field existed; treated like "chat" (the old behaviour).
+  origin?: "cli" | "loop" | "chat";
   sender?: StoredQueueSender;
   surfaceBinding?: StoredQueueSurfaceBinding;
 };
@@ -43,6 +48,7 @@ export function createStoredQueueItem(params: {
   protectedControlMutationRule?: string;
   promptSummary?: string;
   createdBy?: string;
+  origin?: "cli" | "loop" | "chat";
   sender?: StoredQueueSender;
   surfaceBinding?: StoredQueueSurfaceBinding;
 }): StoredQueueItem {
@@ -57,6 +63,7 @@ export function createStoredQueueItem(params: {
     promptSummary: params.promptSummary ?? summarizeQueuePrompt(params.promptText),
     promptSource: "custom",
     createdBy: params.createdBy,
+    ...(params.origin ? { origin: params.origin } : {}),
     sender: params.sender,
     surfaceBinding: params.surfaceBinding,
   };
