@@ -466,7 +466,7 @@ export function renderQueuesHelp(channel?: MessageChannel) {
     "Usage:",
     `  ${renderCliCommand(`queues list [--channel ${channelName} --target <route>]`)}`,
     `  ${renderCliCommand(`queues status [--channel ${channelName} --target <route>]`)}`,
-    `  ${renderCliCommand(`queues create --channel ${channelName} --target <route> --sender <principal> <prompt...>`)}`,
+    `  ${renderCliCommand(`queues create --channel ${channelName} --target <route> --sender <principal> [--notify] <prompt...>`)}`,
     `  ${renderCliCommand(`queues clear --channel ${channelName} --target <route>`)}`,
     `  ${renderCliCommand("queues clear --all")}`,
     "",
