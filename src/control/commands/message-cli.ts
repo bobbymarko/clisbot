@@ -1,5 +1,7 @@
 import { AgentService, type AgentSessionTarget } from "../../agents/runtime/agent-service.ts";
-import { readFile } from "node:fs/promises";
+import { appendFile, chmod, mkdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import {
   loadConfig,
   type LoadConfigOptions,
@@ -42,7 +44,30 @@ type MessageCliDependencies = {
       kind?: "reply" | "progress" | "final";
       source?: "channel" | "message-tool";
     }) => Promise<void>;
+  recordSent?: (entry: SentLogEntry) => Promise<void>;
 };
+
+type SentLogEntry = {
+  at: string;
+  bot: string;
+  channel: string;
+  target: string;
+  kind: "progress" | "final" | "reply";
+  message: string;
+  file?: string;
+  caller: string;
+};
+
+// Local fork (2026-10-01): one JSONL per bot of everything sent through `message send`. Scripts
+// (BAND, feis and print watchers, the brief) send as Nova without passing through her conversation,
+// so when Bobby replied to one she could not see what he meant. Agents grep this to catch up.
+// Mode 600 under ~/.clisbot/state; messages are already on Telegram, but stay off shared paths.
+export async function appendSentLog(entry: SentLogEntry, dir = join(homedir(), ".clisbot/state/sent")) {
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  const path = join(dir, `${entry.bot.replace(/[^a-zA-Z0-9_-]/g, "_")}.jsonl`);
+  await appendFile(path, JSON.stringify(entry) + "\n", { mode: 0o600 });
+  await chmod(path, 0o600);
+}
 
 const defaultMessageCliDependencies: MessageCliDependencies = {
   loadConfig,
@@ -52,6 +77,7 @@ const defaultMessageCliDependencies: MessageCliDependencies = {
     const agentService = new AgentService(loadedConfig);
     await agentService.recordConversationReply(target, kind, source);
   },
+  recordSent: (entry) => appendSentLog(entry),
 };
 
 function parseRepeatedOption(args: string[], name: string) {
@@ -396,6 +422,23 @@ export async function runMessageCli(
       kind: resolveReplyKind(resolvedCommand),
       source: "message-tool",
     });
+  }
+
+  if (resolvedCommand.action === "send" && dependencies.recordSent) {
+    try {
+      await dependencies.recordSent({
+        at: new Date().toISOString(),
+        bot: execution.botId ?? "default",
+        channel: resolvedCommand.channel,
+        target: String(resolvedCommand.target ?? ""),
+        kind: resolveReplyKind(resolvedCommand),
+        message: (resolvedCommand.message ?? "").slice(0, 4000),
+        ...(resolvedCommand.media ? { file: String(resolvedCommand.media) } : {}),
+        caller: process.env.CLISBOT_SENT_CALLER ?? process.argv0,
+      });
+    } catch {
+      // The message is already delivered; a log failure must not turn it into an error.
+    }
   }
 
   if (resolvedCommand.json) {

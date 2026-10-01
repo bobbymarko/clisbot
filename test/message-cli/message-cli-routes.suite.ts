@@ -77,6 +77,34 @@ describe("message cli", () => {
     expect(text).toContain("Slack thread ts");
   });
 
+  test("records every send in the per-bot sent log", async () => {
+    const { deps } = createDependencies();
+    const sent: Array<Record<string, unknown>> = [];
+    await runMessageCli(
+      ["send", "--channel", "telegram", "--account", "ops", "--target", "-1001234567890",
+       "--message", "hello", "--final", "--json"],
+      { ...deps, recordSent: async (entry) => { sent.push(entry); } },
+    );
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ bot: "ops", channel: "telegram", target: "-1001234567890",
+                                    kind: "final", message: "hello" });
+  });
+
+  test("appendSentLog writes one private JSONL line per bot", async () => {
+    const { mkdtemp, readFile, stat } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const { appendSentLog } = await import("../../src/control/commands/message-cli.ts");
+    const dir = await mkdtemp(join(tmpdir(), "sent-"));
+    const entry = { at: "t", bot: "nova", channel: "telegram", target: "1", kind: "final" as const,
+                    message: "hi", caller: "test" };
+    await appendSentLog(entry, dir);
+    await appendSentLog({ ...entry, message: "again" }, dir);
+    const lines = (await readFile(join(dir, "nova.jsonl"), "utf8")).trim().split("\n");
+    expect(lines.map((l) => JSON.parse(l).message)).toEqual(["hi", "again"]);
+    expect((await stat(join(dir, "nova.jsonl"))).mode & 0o777).toBe(0o600);
+  });
+
   test("routes telegram send with --topic-id through the resolved bot config", async () => {
     const { deps, logs, calls, replyTargets } = createDependencies();
 
