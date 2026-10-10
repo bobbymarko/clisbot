@@ -1,4 +1,6 @@
 import { createServer } from "node:http";
+import { lookup } from "node:dns/promises";
+import { BlockList, isIP } from "node:net";
 import type { IncomingMessage } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import type { AgentService } from "../../agents/runtime/agent-service.ts";
@@ -85,6 +87,49 @@ export class WebRuntimeService implements ChannelRuntimeService {
     // In-memory OG image cache: url → {image, ts}
     const ogCache = new Map<string, { image: string | null; ts: number }>();
     const OG_CACHE_TTL = 3600_000; // 1h
+    // Security audit 2026-10-10 (Bodo): /og needs no key (the web client calls it for link previews), so it was
+    // an open proxy: anyone could make this box fetch localhost, the tailnet or the cloud metadata address, with
+    // an unbounded body and an unbounded cache (an OOM away from taking every bot down). Now: http(s) only,
+    // public addresses only (checked after DNS, redirects refused), 512 KB read cap, 500-entry cache.
+    const OG_MAX_BYTES = 512 * 1024;
+    const OG_MAX_ENTRIES = 500;
+    const blocked = new BlockList();
+    for (const [net, bits] of [["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16],
+                               ["172.16.0.0", 12], ["192.168.0.0", 16], ["224.0.0.0", 4], ["240.0.0.0", 4]] as const) {
+      blocked.addSubnet(net, bits, "ipv4");
+    }
+    // No ::ffff:0:0/96 here: BlockList applies it to plain IPv4 too. Mapped addresses are unwrapped below instead.
+    for (const [net, bits] of [["::", 127], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8]] as const) {
+      blocked.addSubnet(net, bits, "ipv6");
+    }
+    const publicTarget = async (raw: string): Promise<boolean> => {
+      let u: URL;
+      try { u = new URL(raw); } catch { return false; }
+      if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+      const host = u.hostname.replace(/^\[|\]$/g, "");
+      const addrs = isIP(host) ? [{ address: host, family: isIP(host) }] : await lookup(host, { all: true }).catch(() => []);
+      return addrs.length > 0 && addrs.every((a) => {
+        const v4 = a.address.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i)?.[1];
+        return v4 ? !blocked.check(v4, "ipv4") : !blocked.check(a.address, a.family === 6 ? "ipv6" : "ipv4");
+      });
+    };
+    const readCapped = async (r: Response): Promise<string> => {
+      const reader = r.body?.getReader();
+      if (!reader) return "";
+      const chunks: Uint8Array[] = [];
+      let n = 0;
+      while (n < OG_MAX_BYTES) {
+        const { done, value } = await reader.read();
+        if (done || !value) break;
+        chunks.push(value); n += value.length;
+      }
+      await reader.cancel().catch(() => {});
+      return new TextDecoder().decode(Buffer.concat(chunks).subarray(0, OG_MAX_BYTES));
+    };
+    const remember = (url: string, image: string | null) => {
+      if (ogCache.size >= OG_MAX_ENTRIES) ogCache.delete(ogCache.keys().next().value as string);
+      ogCache.set(url, { image, ts: Date.now() });
+    };
 
     const httpServer = createServer(async (req, res) => {
       // OG image proxy — returns {"image":"..."} or {"image":null}
@@ -102,18 +147,20 @@ export class WebRuntimeService implements ChannelRuntimeService {
         }
 
         try {
+          if (targetUrl.length > 2048 || !(await publicTarget(targetUrl))) throw new Error("refused");
           const html = await fetch(targetUrl, {
             signal: AbortSignal.timeout(5000),
+            redirect: "manual",
             headers: { "User-Agent": "Mozilla/5.0 (compatible; clisbot/1.0)" },
-          }).then(r => r.text());
+          }).then(r => (r.status >= 300 && r.status < 400 ? "" : readCapped(r)));
           const match = html.match(/<meta[^>]+(?:property=["']og:image["']|name=["']og:image["'])[^>]+content=["']([^"']+)["']/i)
             ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+(?:property=["']og:image["']|name=["']og:image["'])/i);
           const image = match?.[1] ?? null;
-          ogCache.set(targetUrl, { image, ts: Date.now() });
+          remember(targetUrl, image);
           res.writeHead(200);
           res.end(JSON.stringify({ image }));
         } catch {
-          ogCache.set(targetUrl, { image: null, ts: Date.now() });
+          remember(targetUrl, null);
           res.writeHead(200);
           res.end('{"image":null}');
         }
@@ -322,7 +369,8 @@ export class WebRuntimeService implements ChannelRuntimeService {
     });
 
     await new Promise<void>((resolve, reject) => {
-      httpServer.listen(port, "0.0.0.0", () => resolve());
+      // Loopback only: nginx (clisbot.bobby-marko.com) is the public door, with TLS (security audit 2026-10-10).
+      httpServer.listen(port, "127.0.0.1", () => resolve());
       httpServer.once("error", reject);
     });
 
