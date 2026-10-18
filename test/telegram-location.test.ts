@@ -14,8 +14,8 @@ import { TelegramLocationStore } from "../src/channels/telegram/location-store.t
 function buildMessage(overrides: Partial<TelegramMessage> = {}): TelegramMessage {
   return {
     message_id: 1,
-    from: { id: 8387881738, first_name: "Bob" },
-    chat: { id: 8387881738, type: "private" },
+    from: { id: 100000001, first_name: "Bob" },
+    chat: { id: 100000001, type: "private" },
     ...overrides,
   };
 }
@@ -104,7 +104,7 @@ describe("telegram location store", () => {
     const store = new TelegramLocationStore(filePath);
 
     await store.record({
-      chatId: "8387881738",
+      chatId: "100000001",
       senderName: "Bob",
       latitude: 48.99,
       longitude: -110.2,
@@ -112,7 +112,7 @@ describe("telegram location store", () => {
       updatedAt: new Date().toISOString(),
     });
     await store.record({
-      chatId: "8387881738",
+      chatId: "100000001",
       senderName: "Bob",
       latitude: 48.36,
       longitude: -107.87,
@@ -120,13 +120,13 @@ describe("telegram location store", () => {
       updatedAt: new Date().toISOString(),
     });
 
-    const current = await store.get("8387881738");
+    const current = await store.get("100000001");
     expect(current?.latitude).toBe(48.36);
     expect(current?.longitude).toBe(-107.87);
 
     // Readable by agent tooling without going through clisbot.
     const onDisk = JSON.parse(await readFile(filePath, "utf8"));
-    expect(onDisk.locations["8387881738"].latitude).toBe(48.36);
+    expect(onDisk.locations["100000001"].latitude).toBe(48.36);
   });
 
   test("drops positions older than the retention window", async () => {

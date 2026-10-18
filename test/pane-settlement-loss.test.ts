@@ -20,14 +20,14 @@ import {
 // interaction renderer hands to settleFromPaneResult for a completed run.
 const ECHOED_NO_TAGS = `Message context:
 - time: 2026-08-03T00:15:00.000Z
-- sender: Bob Bertoni [telegram:8387881738, @bobertoni]
+- sender: Bob Bertoni [telegram:100000001, @bobertoni]
 
 You are operating inside clisbot.
 To send a user-visible progress update or final reply, use the following CLI command:
 clisbot message send \\
   --channel telegram \\
   --bot nova \\
-  --target 8387881738 \\
+  --target 100000001 \\
   --input md \\
   --render native \\
   --final|progress \\

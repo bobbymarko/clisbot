@@ -559,7 +559,7 @@ describe("stripEchoedAgentPrompt", () => {
   const leaked = [
     "<system>",
     "Message context:",
-    "- sender: Bob Bertoni [telegram:8387881738, @bobertoni]",
+    "- sender: Bob Bertoni [telegram:100000001, @bobertoni]",
     "",
     "You are operating inside clisbot.",
     "To send a user-visible progress update or final reply, use the following CLI command:",
@@ -611,7 +611,7 @@ describe("stripEchoedAgentPrompt", () => {
   test("strips the real generated prompt end to end", () => {
     const prompt = buildAgentPromptText({
       text: "hello there",
-      identity: { platform: "telegram", channel: "telegram", conversationId: "8387881738" } as never,
+      identity: { platform: "telegram", channel: "telegram", conversationId: "100000001" } as never,
       config: { enabled: true, maxProgressMessages: 3, requireFinalResponse: true },
       responseMode: "message-tool",
     });
